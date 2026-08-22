@@ -127,14 +127,27 @@ export function renderAnnotations() {
     // ========================================================
 
     /*
-     * Leader-line length
+     * 두 번째 지시선 길이.
      *
-     * 5  = shorter
-     * 10 = current
-     * 15 = longer
-     * 20 = very long
+     * 5  = 짧음
+     * 10 = 현재
+     * 15 = 김
+     * 20 = 매우 김
      */
     const LEADER_MULTIPLIER = 10;
+
+
+    /*
+     * 첫 번째 구간:
+     * point에서 surface normal 방향으로
+     * 얼마나 먼저 모델 밖으로 빠져나올지 결정.
+     *
+     * 0.05 = 짧음
+     * 0.07 = 권장
+     * 0.10 = 더 많이 바깥으로
+     * 0.15 = 매우 많이 바깥으로
+     */
+    const SURFACE_LIFT_FACTOR = 0.07;
 
 
     // --------------------------------------------------------
@@ -180,6 +193,28 @@ export function renderAnnotations() {
         if (ann.type === 'point') {
 
             // ------------------------------------------------
+            // Stored point
+            // ------------------------------------------------
+
+            const storedPoint =
+                ann.points[0];
+
+
+            const dp =
+                toDisplayCoords(
+                    storedPoint
+                );
+
+
+            const pointPosition =
+                new THREE.Vector3(
+                    dp.x,
+                    dp.y,
+                    dp.z
+                );
+
+
+            // ------------------------------------------------
             // Point marker
             // ------------------------------------------------
 
@@ -205,20 +240,6 @@ export function renderAnnotations() {
                 new THREE.Mesh(
                     geometry,
                     material
-                );
-
-
-            const dp =
-                toDisplayCoords(
-                    ann.points[0]
-                );
-
-
-            const pointPosition =
-                new THREE.Vector3(
-                    dp.x,
-                    dp.y,
-                    dp.z
                 );
 
 
@@ -252,33 +273,161 @@ export function renderAnnotations() {
 
 
             // =================================================
-            // SCREEN-SPACE OUTWARD DIRECTION
+            // 1. SURFACE NORMAL
+            // =================================================
+
+            let surfaceNormal =
+                null;
+
+
+            /*
+             * 새로 생성된 point annotation에는
+             * nx, ny, nz가 저장되어 있어야 함.
+             */
+            if (
+                Number.isFinite(storedPoint.nx) &&
+                Number.isFinite(storedPoint.ny) &&
+                Number.isFinite(storedPoint.nz)
+            ) {
+
+                const displayNormal =
+                    toDisplayCoords({
+
+                        x:
+                            storedPoint.nx,
+
+                        y:
+                            storedPoint.ny,
+
+                        z:
+                            storedPoint.nz
+                    });
+
+
+                surfaceNormal =
+                    new THREE.Vector3(
+                        displayNormal.x,
+                        displayNormal.y,
+                        displayNormal.z
+                    );
+
+
+                if (
+                    surfaceNormal.lengthSq() >
+                    1e-12
+                ) {
+
+                    surfaceNormal.normalize();
+
+                } else {
+
+                    surfaceNormal =
+                        null;
+                }
+            }
+
+
+            // =================================================
+            // Fallback for old annotations without normal
+            // =================================================
+
+            if (
+                !surfaceNormal
+            ) {
+
+                /*
+                 * 기존 annotation에는 nx, ny, nz가 없으므로
+                 * camera 방향을 임시 normal로 사용.
+                 */
+                surfaceNormal =
+                    new THREE.Vector3()
+                        .subVectors(
+                            state.camera.position,
+                            pointPosition
+                        );
+
+
+                if (
+                    surfaceNormal.lengthSq() <
+                    1e-12
+                ) {
+
+                    surfaceNormal.set(
+                        0,
+                        0,
+                        1
+                    );
+
+                } else {
+
+                    surfaceNormal.normalize();
+                }
+            }
+
+
+            // =================================================
+            // Ensure normal points toward camera
+            // =================================================
+
+            const toCamera =
+                new THREE.Vector3()
+                    .subVectors(
+                        state.camera.position,
+                        pointPosition
+                    );
+
+
+            if (
+                toCamera.lengthSq() >
+                1e-12
+            ) {
+
+                toCamera.normalize();
+
+
+                if (
+                    surfaceNormal.dot(
+                        toCamera
+                    ) < 0
+                ) {
+
+                    surfaceNormal.negate();
+                }
+            }
+
+
+            // =================================================
+            // 2. FIRST SEGMENT:
+            // move away from anatomical surface
+            // =================================================
+
+            const surfaceLift =
+                Math.pow(
+                    maxDim,
+                    0.8
+                )
+                * SURFACE_LIFT_FACTOR;
+
+
+            const elbowPosition =
+                pointPosition
+                    .clone()
+                    .add(
+                        surfaceNormal
+                            .clone()
+                            .multiplyScalar(
+                                surfaceLift
+                            )
+                    );
+
+
+            // =================================================
+            // 3. SCREEN-SPACE OUTWARD DIRECTION
             // =================================================
 
             /*
-             * The important difference from the previous code:
-             *
-             * We do NOT use:
-             *
-             *     pointPosition - modelCenter
-             *
-             * directly as a 3D leader direction.
-             *
-             * Instead, model center and annotation point are
-             * first projected onto the SCREEN.
-             *
-             * Therefore:
-             *
-             * left-side point   -> leader goes left
-             * right-side point  -> leader goes right
-             * upper point       -> leader goes upward
-             * lower point       -> leader goes downward
+             * 모델 중심과 elbow를 현재 화면에 projection.
              */
-
-
-            // ------------------------------------------------
-            // Project model center to screen
-            // ------------------------------------------------
 
             const centerNDC =
                 modelCenter
@@ -288,29 +437,21 @@ export function renderAnnotations() {
                     );
 
 
-            // ------------------------------------------------
-            // Project annotation point to screen
-            // ------------------------------------------------
-
-            const pointNDC =
-                pointPosition
+            const elbowNDC =
+                elbowPosition
                     .clone()
                     .project(
                         state.camera
                     );
 
 
-            // ------------------------------------------------
-            // Screen-space radial direction
-            // ------------------------------------------------
-
             let screenX =
-                pointNDC.x -
+                elbowNDC.x -
                 centerNDC.x;
 
 
             let screenY =
-                pointNDC.y -
+                elbowNDC.y -
                 centerNDC.y;
 
 
@@ -321,29 +462,67 @@ export function renderAnnotations() {
                 );
 
 
-            /*
-             * Very rare case:
-             * point lies exactly over the projected model center.
-             */
+            // ------------------------------------------------
+            // Center fallback
+            // ------------------------------------------------
+
             if (
                 screenLength <
                 0.000001
             ) {
 
+                /*
+                 * 화면 중심과 거의 동일한 경우,
+                 * normal을 화면 평면으로 projection하여
+                 * 두 번째 구간 방향으로 사용.
+                 */
+
+                const normalEnd =
+                    elbowPosition
+                        .clone()
+                        .add(
+                            surfaceNormal
+                        )
+                        .project(
+                            state.camera
+                        );
+
+
                 screenX =
-                    1;
+                    normalEnd.x -
+                    elbowNDC.x;
 
 
                 screenY =
-                    0;
+                    normalEnd.y -
+                    elbowNDC.y;
 
 
                 screenLength =
-                    1;
+                    Math.sqrt(
+                        screenX * screenX +
+                        screenY * screenY
+                    );
+
+
+                if (
+                    screenLength <
+                    0.000001
+                ) {
+
+                    screenX =
+                        1;
+
+
+                    screenY =
+                        0;
+
+
+                    screenLength =
+                        1;
+                }
             }
 
-
-            // Normalize 2D screen direction
 
             screenX /=
                 screenLength;
@@ -354,13 +533,8 @@ export function renderAnnotations() {
 
 
             // =================================================
-            // Camera right/up vectors
+            // Camera screen axes
             // =================================================
-
-            /*
-             * Convert screen X/Y direction back into
-             * a 3D vector parallel to the current screen.
-             */
 
             const cameraRight =
                 new THREE.Vector3(
@@ -386,45 +560,39 @@ export function renderAnnotations() {
                     .normalize();
 
 
-            // ------------------------------------------------
-            // Final outward direction
-            // ------------------------------------------------
+            // =================================================
+            // Convert 2D direction back to 3D
+            // =================================================
 
-            const outwardDir =
-                new THREE.Vector3();
-
-
-            outwardDir
-                .addScaledVector(
-                    cameraRight,
-                    screenX
-                );
-
-
-            outwardDir
-                .addScaledVector(
-                    cameraUp,
-                    screenY
-                );
+            const screenOutward =
+                new THREE.Vector3()
+                    .addScaledVector(
+                        cameraRight,
+                        screenX
+                    )
+                    .addScaledVector(
+                        cameraUp,
+                        screenY
+                    );
 
 
             if (
-                outwardDir.lengthSq() <
-                0.000000000001
+                screenOutward.lengthSq() <
+                1e-12
             ) {
 
-                outwardDir.copy(
+                screenOutward.copy(
                     cameraRight
                 );
 
             } else {
 
-                outwardDir.normalize();
+                screenOutward.normalize();
             }
 
 
             // =================================================
-            // Leader length
+            // 4. SECOND SEGMENT LENGTH
             // =================================================
 
             const leaderLength =
@@ -433,22 +601,14 @@ export function renderAnnotations() {
 
 
             // =================================================
-            // Leader starts exactly at clicked point
-            // =================================================
-
-            const leaderStart =
-                pointPosition.clone();
-
-
-            // =================================================
-            // Label position
+            // 5. LABEL POSITION
             // =================================================
 
             labelPosition =
-                pointPosition
+                elbowPosition
                     .clone()
                     .add(
-                        outwardDir
+                        screenOutward
                             .clone()
                             .multiplyScalar(
                                 leaderLength
@@ -457,7 +617,9 @@ export function renderAnnotations() {
 
 
             // =================================================
-            // Leader line
+            // 6. TWO-SEGMENT LEADER LINE
+            //
+            // point -> elbow -> label
             // =================================================
 
             const leaderGeometry =
@@ -465,10 +627,18 @@ export function renderAnnotations() {
 
 
             leaderGeometry.setPositions([
-                leaderStart.x,
-                leaderStart.y,
-                leaderStart.z,
 
+                // Selected anatomical point
+                pointPosition.x,
+                pointPosition.y,
+                pointPosition.z,
+
+                // Escape from surface
+                elbowPosition.x,
+                elbowPosition.y,
+                elbowPosition.z,
+
+                // Extend outside model
                 labelPosition.x,
                 labelPosition.y,
                 labelPosition.z
@@ -494,7 +664,14 @@ export function renderAnnotations() {
                         new THREE.Vector2(
                             getViewportWidth(),
                             getViewportHeight()
-                        )
+                        ),
+
+                    /*
+                     * 모델 뒤에 있는 부분은
+                     * 모델에 가려지도록 함.
+                     */
+                    depthTest:
+                        true
                 });
 
 
@@ -509,9 +686,6 @@ export function renderAnnotations() {
                 ann.id;
 
 
-            /*
-             * Text is rendered at 9999.
-             */
             leader.renderOrder =
                 9998;
 
