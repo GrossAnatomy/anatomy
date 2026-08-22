@@ -156,73 +156,58 @@ function getNearestScreenEdge(
 
 
     // --------------------------------------------------------
-    // Distance from point to each of four screen borders
+    // Determine nearest edge using diagonal quadrants,
+    // NOT raw pixel distance.
+    //
+    // Raw pixel distance to each of the 4 borders is heavily
+    // biased on wide viewports: since height << width, the
+    // distance to top/bottom is almost always smaller than the
+    // distance to left/right, so 'left'/'right' would almost
+    // never get selected regardless of where the point actually
+    // is on screen.
+    //
+    // Instead we normalize the offset from screen center by
+    // width/height independently (splitting the screen into 4
+    // triangles via its diagonals) so all 4 directions are
+    // reachable based on the point's actual quadrant, regardless
+    // of aspect ratio.
     // --------------------------------------------------------
 
-    const distances = {
-
-        left:
-            x,
-
-        right:
-            width - x,
-
-        top:
-            y,
-
-        bottom:
-            height - y
-    };
+    const dx =
+        (
+            x -
+            width / 2
+        )
+        / width;
 
 
-    // --------------------------------------------------------
-    // Find nearest screen edge
-    // --------------------------------------------------------
+    const dy =
+        (
+            y -
+            height / 2
+        )
+        / height;
 
-    let nearest =
-        'left';
 
-
-    let minDistance =
-        distances.left;
+    let nearest;
 
 
     if (
-        distances.right <
-        minDistance
+        Math.abs(dx) >
+        Math.abs(dy)
     ) {
 
         nearest =
-            'right';
+            dx < 0
+                ? 'left'
+                : 'right';
 
-        minDistance =
-            distances.right;
-    }
-
-
-    if (
-        distances.top <
-        minDistance
-    ) {
+    } else {
 
         nearest =
-            'top';
-
-        minDistance =
-            distances.top;
-    }
-
-
-    if (
-        distances.bottom <
-        minDistance
-    ) {
-
-        nearest =
-            'bottom';
-
-        minDistance =
-            distances.bottom;
+            dy < 0
+                ? 'top'
+                : 'bottom';
     }
 
 
