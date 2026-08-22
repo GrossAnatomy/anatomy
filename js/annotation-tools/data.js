@@ -64,8 +64,31 @@ export function openAnnotationPopup(event, type, points, extraData = null) {
     dom.newEntryForm.style.display = 'block';
 
     dom.annotationPopup.dataset.type = type;
-    dom.annotationPopup.dataset.points = JSON.stringify(points.map(p => ({ x: p.x, y: p.y, z: p.z })));
+dom.annotationPopup.dataset.points = JSON.stringify(
+    points.map(p => {
 
+        const savedPoint = {
+            x: p.x,
+            y: p.y,
+            z: p.z
+        };
+
+        // Point annotation의 surface normal도 같이 보존
+        if (
+            Number.isFinite(p.nx) &&
+            Number.isFinite(p.ny) &&
+            Number.isFinite(p.nz)
+        ) {
+            savedPoint.nx = p.nx;
+            savedPoint.ny = p.ny;
+            savedPoint.nz = p.nz;
+        }
+
+        return savedPoint;
+    })
+);
+
+   
     if ((type === 'line' || type === 'polygon') && state.surfaceProjectionEnabled) {
         dom.surfaceProjectionToggle.style.display = 'block';
         dom.annSurfaceProjection.checked = true;
