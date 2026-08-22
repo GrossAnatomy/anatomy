@@ -12,6 +12,192 @@ import { setDrawingCallbacks, addDrawingPoint, handlePointTap, finishDrawing } f
 import { clearPendingBox, updatePendingBoxManipulation, updateSelectedBoxManipulation, confirmBoxPlacement, endPendingBoxManipulation, endSelectedBoxManipulation, setBoxEditCallbacks, handleUnlockedBoxClickElsewhere, beginBoxPlacement, toggleExistingBoxLock, handlePendingBoxPointerDown, beginBoxHandleDrag, beginBoxBodyDrag } from './box-edit.js';
 
 export function setEditingCallbacks({ openAnnotationPopup, setTool }) {
+   // ============================================================
+// Point hit + world-space surface normal
+// ============================================================
+
+function getPointHitWithNormal(event) {
+
+    const hit =
+        getIntersectionWithFace(
+            event
+        );
+
+
+    if (
+        !hit ||
+        !hit.mesh ||
+        hit.faceIndex == null
+    ) {
+        return null;
+    }
+
+
+    const mesh =
+        hit.mesh;
+
+
+    const geometry =
+        mesh.geometry;
+
+
+    const position =
+        geometry.attributes.position;
+
+
+    if (
+        !position
+    ) {
+        return null;
+    }
+
+
+    const faceIndex =
+        hit.faceIndex;
+
+
+    let a;
+    let b;
+    let c;
+
+
+    if (
+        geometry.index
+    ) {
+
+        a =
+            geometry.index.getX(
+                faceIndex * 3
+            );
+
+        b =
+            geometry.index.getX(
+                faceIndex * 3 + 1
+            );
+
+        c =
+            geometry.index.getX(
+                faceIndex * 3 + 2
+            );
+
+    } else {
+
+        a =
+            faceIndex * 3;
+
+        b =
+            faceIndex * 3 + 1;
+
+        c =
+            faceIndex * 3 + 2;
+    }
+
+
+    const va =
+        new THREE.Vector3()
+            .fromBufferAttribute(
+                position,
+                a
+            );
+
+
+    const vb =
+        new THREE.Vector3()
+            .fromBufferAttribute(
+                position,
+                b
+            );
+
+
+    const vc =
+        new THREE.Vector3()
+            .fromBufferAttribute(
+                position,
+                c
+            );
+
+
+    const edge1 =
+        new THREE.Vector3()
+            .subVectors(
+                vb,
+                va
+            );
+
+
+    const edge2 =
+        new THREE.Vector3()
+            .subVectors(
+                vc,
+                va
+            );
+
+
+    /*
+     * Local triangle normal.
+     */
+    const normal =
+        new THREE.Vector3()
+            .crossVectors(
+                edge1,
+                edge2
+            )
+            .normalize();
+
+
+    /*
+     * Transform local normal into world space.
+     * NormalMatrix correctly handles mesh scaling.
+     */
+    const normalMatrix =
+        new THREE.Matrix3()
+            .getNormalMatrix(
+                mesh.matrixWorld
+            );
+
+
+    normal
+        .applyMatrix3(
+            normalMatrix
+        )
+        .normalize();
+
+
+    /*
+     * Triangle winding is not always reliable in imported
+     * anatomical meshes.
+     *
+     * Because the user clicked a visible surface,
+     * orient the normal toward the camera.
+     */
+    const toCamera =
+        new THREE.Vector3()
+            .subVectors(
+                state.camera.position,
+                hit.point
+            )
+            .normalize();
+
+
+    if (
+        normal.dot(
+            toCamera
+        ) < 0
+    ) {
+
+        normal.negate();
+    }
+
+
+    return {
+
+        point:
+            hit.point.clone(),
+
+        normal:
+            normal
+    };
+}
     setSurfacePaintCallbacks({ openAnnotationPopup, setTool });
     setBoxEditCallbacks({ openAnnotationPopup, setTool });
     setDrawingCallbacks({ openAnnotationPopup, setTool });
