@@ -127,7 +127,7 @@ export function renderAnnotations() {
     // ========================================================
 
     /*
-     * Leader-line length.
+     * Leader-line length
      *
      * 5  = shorter
      * 10 = current
@@ -135,24 +135,6 @@ export function renderAnnotations() {
      * 20 = very long
      */
     const LEADER_MULTIPLIER = 10;
-
-
-    /*
-     * Gap between clicked point and
-     * beginning of leader line.
-     */
-    const LEADER_START_FACTOR = 0.04;
-
-
-    /*
-     * Slightly pull the leader toward the camera.
-     *
-     * 0.0 = pure radial direction
-     * 0.2 = slight camera bias
-     * 0.35 = current
-     * 0.5 = stronger camera bias
-     */
-    const CAMERA_BIAS = 0.35;
 
 
     // --------------------------------------------------------
@@ -232,10 +214,16 @@ export function renderAnnotations() {
                 );
 
 
-            marker.position.set(
-                dp.x,
-                dp.y,
-                dp.z
+            const pointPosition =
+                new THREE.Vector3(
+                    dp.x,
+                    dp.y,
+                    dp.z
+                );
+
+
+            marker.position.copy(
+                pointPosition
             );
 
 
@@ -263,128 +251,201 @@ export function renderAnnotations() {
             );
 
 
+            // =================================================
+            // SCREEN-SPACE OUTWARD DIRECTION
+            // =================================================
+
+            /*
+             * The important difference from the previous code:
+             *
+             * We do NOT use:
+             *
+             *     pointPosition - modelCenter
+             *
+             * directly as a 3D leader direction.
+             *
+             * Instead, model center and annotation point are
+             * first projected onto the SCREEN.
+             *
+             * Therefore:
+             *
+             * left-side point   -> leader goes left
+             * right-side point  -> leader goes right
+             * upper point       -> leader goes upward
+             * lower point       -> leader goes downward
+             */
+
+
             // ------------------------------------------------
-            // Determine outward direction
+            // Project model center to screen
             // ------------------------------------------------
 
-            const pointPosition =
-                new THREE.Vector3(
-                    dp.x,
-                    dp.y,
-                    dp.z
+            const centerNDC =
+                modelCenter
+                    .clone()
+                    .project(
+                        state.camera
+                    );
+
+
+            // ------------------------------------------------
+            // Project annotation point to screen
+            // ------------------------------------------------
+
+            const pointNDC =
+                pointPosition
+                    .clone()
+                    .project(
+                        state.camera
+                    );
+
+
+            // ------------------------------------------------
+            // Screen-space radial direction
+            // ------------------------------------------------
+
+            let screenX =
+                pointNDC.x -
+                centerNDC.x;
+
+
+            let screenY =
+                pointNDC.y -
+                centerNDC.y;
+
+
+            let screenLength =
+                Math.sqrt(
+                    screenX * screenX +
+                    screenY * screenY
                 );
 
 
             /*
-             * Basic outward direction:
-             *
-             * model center ---> clicked point ---> outside
+             * Very rare case:
+             * point lies exactly over the projected model center.
              */
-            const outwardDir =
-                new THREE.Vector3()
-                    .subVectors(
-                        pointPosition,
-                        modelCenter
-                    );
+            if (
+                screenLength <
+                0.000001
+            ) {
 
+                screenX =
+                    1;
+
+
+                screenY =
+                    0;
+
+
+                screenLength =
+                    1;
+            }
+
+
+            // Normalize 2D screen direction
+
+            screenX /=
+                screenLength;
+
+
+            screenY /=
+                screenLength;
+
+
+            // =================================================
+            // Camera right/up vectors
+            // =================================================
 
             /*
-             * Safety fallback.
+             * Convert screen X/Y direction back into
+             * a 3D vector parallel to the current screen.
              */
+
+            const cameraRight =
+                new THREE.Vector3(
+                    1,
+                    0,
+                    0
+                )
+                    .applyQuaternion(
+                        state.camera.quaternion
+                    )
+                    .normalize();
+
+
+            const cameraUp =
+                new THREE.Vector3(
+                    0,
+                    1,
+                    0
+                )
+                    .applyQuaternion(
+                        state.camera.quaternion
+                    )
+                    .normalize();
+
+
+            // ------------------------------------------------
+            // Final outward direction
+            // ------------------------------------------------
+
+            const outwardDir =
+                new THREE.Vector3();
+
+
+            outwardDir
+                .addScaledVector(
+                    cameraRight,
+                    screenX
+                );
+
+
+            outwardDir
+                .addScaledVector(
+                    cameraUp,
+                    screenY
+                );
+
+
             if (
                 outwardDir.lengthSq() <
                 0.000000000001
             ) {
 
-                outwardDir.set(
-                    1,
-                    0,
-                    0
+                outwardDir.copy(
+                    cameraRight
                 );
+
+            } else {
+
+                outwardDir.normalize();
             }
 
 
-            outwardDir.normalize();
-
-
-            // ------------------------------------------------
-            // Slight camera bias
-            // ------------------------------------------------
-
-            /*
-             * This reduces the possibility that
-             * a leader line travels behind the model.
-             */
-            if (
-                state.camera &&
-                CAMERA_BIAS > 0
-            ) {
-
-                const toCamera =
-                    new THREE.Vector3()
-                        .subVectors(
-                            state.camera.position,
-                            pointPosition
-                        );
-
-
-                if (
-                    toCamera.lengthSq() >
-                    0.000000000001
-                ) {
-
-                    toCamera.normalize();
-
-
-                    outwardDir
-                        .addScaledVector(
-                            toCamera,
-                            CAMERA_BIAS
-                        )
-                        .normalize();
-                }
-            }
-
-
-            // ------------------------------------------------
+            // =================================================
             // Leader length
-            // ------------------------------------------------
+            // =================================================
 
             const leaderLength =
                 labelOffset
                 * LEADER_MULTIPLIER;
 
 
-            // ------------------------------------------------
-            // Leader starts slightly outside surface
-            // ------------------------------------------------
-
-            const leaderStartOffset =
-                Math.pow(
-                    maxDim,
-                    0.8
-                )
-                * LEADER_START_FACTOR;
-
+            // =================================================
+            // Leader starts exactly at clicked point
+            // =================================================
 
             const leaderStart =
-                pointPosition
-                    .clone()
-                    .add(
-                        outwardDir
-                            .clone()
-                            .multiplyScalar(
-                                leaderStartOffset
-                            )
-                    );
+                pointPosition.clone();
 
 
-            // ------------------------------------------------
+            // =================================================
             // Label position
-            // ------------------------------------------------
+            // =================================================
 
             labelPosition =
-                leaderStart
+                pointPosition
                     .clone()
                     .add(
                         outwardDir
@@ -395,9 +456,9 @@ export function renderAnnotations() {
                     );
 
 
-            // ------------------------------------------------
+            // =================================================
             // Leader line
-            // ------------------------------------------------
+            // =================================================
 
             const leaderGeometry =
                 new LineGeometry();
@@ -449,8 +510,7 @@ export function renderAnnotations() {
 
 
             /*
-             * Text uses 9999,
-             * so leader remains immediately behind text.
+             * Text is rendered at 9999.
              */
             leader.renderOrder =
                 9998;
@@ -462,7 +522,7 @@ export function renderAnnotations() {
 
 
             // ------------------------------------------------
-            // Occlusion check uses actual selected point
+            // Occlusion check
             // ------------------------------------------------
 
             occlusionCheckPos =
