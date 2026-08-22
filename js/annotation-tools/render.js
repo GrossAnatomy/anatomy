@@ -1,7 +1,5 @@
 // js/annotation-tools/render.js
 
-console.log("MODIFIED render.js LOADED - edge-label version");
-
 import * as THREE from 'three';
 
 import { Line2 } from 'three/addons/lines/Line2.js';
@@ -41,395 +39,6 @@ export function setRenderCallbacks({
 
 
 // ============================================================
-// POINT LABEL SETTINGS
-// ============================================================
-
-/*
- * Label을 화면 가장자리에서 얼마나 안쪽에 둘지.
- *
- * 40  = 가장자리에 매우 가까움
- * 70  = 권장
- * 100 = 조금 더 안쪽
- */
-const SCREEN_EDGE_MARGIN = 70;
-
-
-/*
- * Point/anchor에서 바로 label까지 가지 않고
- * 약간의 여유 공간을 둘 때 사용할 수 있는 값.
- *
- * 현재는 직선으로 연결하므로 0.
- */
-const POINT_START_MARGIN = 0;
-
-
-// ============================================================
-// Convert screen pixel coordinates to world coordinates
-// at the same projected depth as the annotation point
-// ============================================================
-
-function screenPixelToWorld(
-    pixelX,
-    pixelY,
-    ndcZ,
-    width,
-    height
-) {
-
-    const ndcX =
-        (
-            pixelX /
-            width
-        ) * 2 - 1;
-
-
-    const ndcY =
-        -(
-            (
-                pixelY /
-                height
-            ) * 2 - 1
-        );
-
-
-    return new THREE.Vector3(
-        ndcX,
-        ndcY,
-        ndcZ
-    )
-        .unproject(
-            state.camera
-        );
-}
-
-
-// ============================================================
-// Choose nearest of four screen borders
-// ============================================================
-
-function getNearestScreenEdge(
-    pointPosition
-) {
-
-    const width =
-        Math.max(
-            1,
-            getViewportWidth()
-        );
-
-
-    const height =
-        Math.max(
-            1,
-            getViewportHeight()
-        );
-
-
-    // --------------------------------------------------------
-    // 3D point -> screen NDC
-    // --------------------------------------------------------
-
-    const projected =
-        pointPosition
-            .clone()
-            .project(
-                state.camera
-            );
-
-
-    // --------------------------------------------------------
-    // NDC -> screen pixels
-    // --------------------------------------------------------
-
-    const x =
-        (
-            projected.x + 1
-        )
-        * 0.5
-        * width;
-
-
-    const y =
-        (
-            1 - projected.y
-        )
-        * 0.5
-        * height;
-
-
-    // --------------------------------------------------------
-    // Determine nearest edge using diagonal quadrants,
-    // NOT raw pixel distance.
-    //
-    // Raw pixel distance to each of the 4 borders is heavily
-    // biased on wide viewports: since height << width, the
-    // distance to top/bottom is almost always smaller than the
-    // distance to left/right, so 'left'/'right' would almost
-    // never get selected regardless of where the point actually
-    // is on screen.
-    //
-    // Instead we normalize the offset from screen center by
-    // width/height independently (splitting the screen into 4
-    // triangles via its diagonals) so all 4 directions are
-    // reachable based on the point's actual quadrant, regardless
-    // of aspect ratio.
-    // --------------------------------------------------------
-
-    const dx =
-        (
-            x -
-            width / 2
-        )
-        / width;
-
-
-    const dy =
-        (
-            y -
-            height / 2
-        )
-        / height;
-
-
-    let nearest;
-
-
-    if (
-        Math.abs(dx) >
-        Math.abs(dy)
-    ) {
-
-        nearest =
-            dx < 0
-                ? 'left'
-                : 'right';
-
-    } else {
-
-        nearest =
-            dy < 0
-                ? 'top'
-                : 'bottom';
-    }
-
-
-    return {
-
-        edge:
-            nearest,
-
-        x,
-
-        y,
-
-        ndcZ:
-            projected.z,
-
-        width,
-
-        height
-    };
-}
-
-
-// ============================================================
-// Common: anchor world position -> label world position
-// pushed toward the nearest screen edge (left/right/top/bottom)
-//
-// This is now shared by ALL annotation types (point, line,
-// polygon, surface, box) so labels are never pushed in a
-// single fixed world-space direction.
-// ============================================================
-
-function computeEdgeLabelPosition(
-    anchorPosition
-) {
-
-    const edgeInfo =
-        getNearestScreenEdge(
-            anchorPosition
-        );
-
-
-    const {
-        width,
-        height,
-        ndcZ
-    } =
-        edgeInfo;
-
-
-    let targetX =
-        edgeInfo.x;
-
-
-    let targetY =
-        edgeInfo.y;
-
-
-    if (
-        edgeInfo.edge ===
-        'left'
-    ) {
-
-        targetX =
-            SCREEN_EDGE_MARGIN;
-
-    } else if (
-        edgeInfo.edge ===
-        'right'
-    ) {
-
-        targetX =
-            width -
-            SCREEN_EDGE_MARGIN;
-
-    } else if (
-        edgeInfo.edge ===
-        'top'
-    ) {
-
-        targetY =
-            SCREEN_EDGE_MARGIN;
-
-    } else if (
-        edgeInfo.edge ===
-        'bottom'
-    ) {
-
-        targetY =
-            height -
-            SCREEN_EDGE_MARGIN;
-    }
-
-
-    return screenPixelToWorld(
-        targetX,
-        targetY,
-        ndcZ,
-        width,
-        height
-    );
-}
-
-
-// ============================================================
-// Common: build the leader line connecting an anchor point
-// to its label position (straight segment, always-on-top)
-// ============================================================
-
-function createLeaderLine(
-    anchorPosition,
-    labelPosition,
-    color,
-    groupOpacity,
-    width,
-    height
-) {
-
-    let leaderStart =
-        anchorPosition.clone();
-
-
-    /*
-     * Normally POINT_START_MARGIN = 0,
-     * so the line starts exactly from the anchor point.
-     */
-    if (
-        POINT_START_MARGIN >
-        0
-    ) {
-
-        const direction =
-            new THREE.Vector3()
-                .subVectors(
-                    labelPosition,
-                    anchorPosition
-                );
-
-
-        if (
-            direction.lengthSq() >
-            1e-12
-        ) {
-
-            direction.normalize();
-
-
-            leaderStart =
-                anchorPosition
-                    .clone()
-                    .add(
-                        direction
-                            .multiplyScalar(
-                                POINT_START_MARGIN
-                            )
-                    );
-        }
-    }
-
-
-    const leaderGeometry =
-        new LineGeometry();
-
-
-    leaderGeometry.setPositions([
-
-        leaderStart.x,
-        leaderStart.y,
-        leaderStart.z,
-
-        labelPosition.x,
-        labelPosition.y,
-        labelPosition.z
-    ]);
-
-
-    const leaderMaterial =
-        new LineMaterial({
-
-            color:
-                color,
-
-            linewidth:
-                3,
-
-            transparent:
-                groupOpacity < 1,
-
-            opacity:
-                groupOpacity,
-
-            resolution:
-                new THREE.Vector2(
-                    width,
-                    height
-                ),
-
-            /*
-             * Always show the leader.
-             */
-            depthTest:
-                false
-        });
-
-
-    const leader =
-        new Line2(
-            leaderGeometry,
-            leaderMaterial
-        );
-
-
-    leader.renderOrder =
-        9998;
-
-
-    return leader;
-}
-
-
-// ============================================================
 // Render Annotations
 // ============================================================
 
@@ -439,84 +48,61 @@ export function renderAnnotations() {
     // Clear existing annotation objects
     // --------------------------------------------------------
 
-    while (
-        state.annotationObjects.children.length >
-        0
-    ) {
+    while (state.annotationObjects.children.length > 0) {
 
         const child =
             state.annotationObjects.children[0];
 
 
-        if (
-            child.geometry
-        ) {
-
+        if (child.geometry) {
             child.geometry.dispose();
         }
 
 
-        if (
-            child.material
-        ) {
+        if (child.material) {
 
             const mats =
-                Array.isArray(
-                    child.material
-                )
+                Array.isArray(child.material)
                     ? child.material
                     : [child.material];
 
 
-            mats.forEach(
-                m => {
+            mats.forEach(m => {
 
-                    if (
-                        m.map
-                    ) {
-
-                        m.map.dispose();
-                    }
-
-
-                    m.dispose();
+                if (m.map) {
+                    m.map.dispose();
                 }
-            );
+
+                m.dispose();
+            });
         }
 
 
-        state.annotationObjects.remove(
-            child
-        );
+        state.annotationObjects.remove(child);
     }
 
 
     // --------------------------------------------------------
-    // Model size
+    // Model size and center
     // --------------------------------------------------------
 
     const modelBox =
         state.currentModel
-            ? new THREE.Box3()
-                .setFromObject(
-                    state.currentModel
-                )
+            ? new THREE.Box3().setFromObject(state.currentModel)
             : new THREE.Box3(
-                new THREE.Vector3(
-                    -0.5,
-                    -0.5,
-                    -0.5
-                ),
-                new THREE.Vector3(
-                    0.5,
-                    0.5,
-                    0.5
-                )
+                new THREE.Vector3(-0.5, -0.5, -0.5),
+                new THREE.Vector3(0.5, 0.5, 0.5)
             );
 
 
     const modelSize =
         modelBox.getSize(
+            new THREE.Vector3()
+        );
+
+
+    const modelCenter =
+        modelBox.getCenter(
             new THREE.Vector3()
         );
 
@@ -529,782 +115,910 @@ export function renderAnnotations() {
         );
 
 
-    // --------------------------------------------------------
-    // Viewport size (shared by all leader lines this pass)
-    // --------------------------------------------------------
+    const labelOffset =
+        Math.pow(
+            maxDim,
+            0.8
+        ) * 0.012;
 
-    const viewportWidth =
-        getViewportWidth();
 
+    // ========================================================
+    // POINT LEADER SETTINGS
+    // ========================================================
 
-    const viewportHeight =
-        getViewportHeight();
+    /*
+     * Point leader length as a fraction
+     * of the model's largest dimension.
+     *
+     * 0.15 = short
+     * 0.25 = medium
+     * 0.35 = recommended
+     * 0.50 = long
+     */
+    const NORMAL_LEADER_LENGTH_FACTOR = 0.35;
 
 
     // --------------------------------------------------------
     // Each annotation
     // --------------------------------------------------------
 
-    state.annotations.forEach(
-        ann => {
+    state.annotations.forEach(ann => {
 
-            const group =
-                state.groups.find(
-                    g =>
-                        g.id === ann.groupId
-                );
+        const group =
+            state.groups.find(
+                g => g.id === ann.groupId
+            );
 
+
+        if (
+            !group ||
+            !group.visible
+        ) {
+            return;
+        }
+
+
+        const color =
+            new THREE.Color(
+                group.color
+            );
+
+
+        const groupOpacity =
+            group.opacity !== undefined
+                ? group.opacity
+                : 1.0;
+
+
+        let labelPosition;
+        let occlusionCheckPos;
+
+
+        // ====================================================
+        // POINT
+        // ====================================================
+
+        if (ann.type === 'point') {
+
+            // ------------------------------------------------
+            // Check stored point
+            // ------------------------------------------------
 
             if (
-                !group ||
-                !group.visible
+                !ann.points ||
+                ann.points.length === 0
             ) {
-
                 return;
             }
 
 
-            const color =
-                new THREE.Color(
-                    group.color
+            const storedPoint =
+                ann.points[0];
+
+
+            const dp =
+                toDisplayCoords(
+                    storedPoint
                 );
 
 
-            const groupOpacity =
-                group.opacity !== undefined
-                    ? group.opacity
-                    : 1.0;
+            const pointPosition =
+                new THREE.Vector3(
+                    dp.x,
+                    dp.y,
+                    dp.z
+                );
 
 
-            let labelPosition;
+            // ------------------------------------------------
+            // Point marker
+            // ------------------------------------------------
 
-            let occlusionCheckPos;
+            const geometry =
+                new THREE.SphereGeometry(
+                    0.02,
+                    16,
+                    16
+                );
+
+
+            const material =
+                new THREE.MeshBasicMaterial({
+                    color,
+                    transparent:
+                        groupOpacity < 1,
+                    opacity:
+                        groupOpacity
+                });
+
+
+            const marker =
+                new THREE.Mesh(
+                    geometry,
+                    material
+                );
+
+
+            marker.position.copy(
+                pointPosition
+            );
+
+
+            marker.scale.setScalar(
+                Math.pow(
+                    maxDim,
+                    0.8
+                )
+                *
+                0.025
+                *
+                state.pointSizeMultiplier
+            );
+
+
+            marker.userData.annotationId =
+                ann.id;
+
+
+            marker.userData.pointIndex =
+                0;
+
+
+            marker.userData.isAnnotationMarker =
+                true;
+
+
+            state.annotationObjects.add(
+                marker
+            );
 
 
             // =================================================
-            // POINT
+            // EXACT SURFACE NORMAL
             // =================================================
+
+            /*
+             * drawing.js / editing.js store:
+             *
+             * nx, ny, nz
+             *
+             * together with x, y, z.
+             *
+             * The leader direction is therefore based ONLY
+             * on the clicked triangle surface normal.
+             */
+
+            let normalDirection =
+                null;
+
 
             if (
-                ann.type === 'point'
+                Number.isFinite(storedPoint.nx) &&
+                Number.isFinite(storedPoint.ny) &&
+                Number.isFinite(storedPoint.nz)
             ) {
 
-                // ---------------------------------------------
-                // Annotation point
-                // ---------------------------------------------
+                const displayNormal =
+                    toDisplayCoords({
 
-                const storedPoint =
-                    ann.points[0];
+                        x:
+                            storedPoint.nx,
 
+                        y:
+                            storedPoint.ny,
 
-                const dp =
-                    toDisplayCoords(
-                        storedPoint
-                    );
-
-
-                const pointPosition =
-                    new THREE.Vector3(
-                        dp.x,
-                        dp.y,
-                        dp.z
-                    );
-
-
-                // ---------------------------------------------
-                // Point marker
-                // ---------------------------------------------
-
-                const geometry =
-                    new THREE.SphereGeometry(
-                        0.02,
-                        16,
-                        16
-                    );
-
-
-                const material =
-                    new THREE.MeshBasicMaterial({
-
-                        color,
-
-                        transparent:
-                            groupOpacity < 1,
-
-                        opacity:
-                            groupOpacity
+                        z:
+                            storedPoint.nz
                     });
 
 
-                const marker =
-                    new THREE.Mesh(
-                        geometry,
-                        material
+                normalDirection =
+                    new THREE.Vector3(
+                        displayNormal.x,
+                        displayNormal.y,
+                        displayNormal.z
                     );
 
 
-                marker.position.copy(
-                    pointPosition
-                );
+                if (
+                    normalDirection.lengthSq() >
+                    1e-12
+                ) {
 
+                    normalDirection.normalize();
 
-                marker.scale.setScalar(
+                } else {
 
-                    Math.pow(
-                        maxDim,
-                        0.8
-                    )
-                    *
-                    0.025
-                    *
-                    state.pointSizeMultiplier
-                );
-
-
-                marker.userData.annotationId =
-                    ann.id;
-
-
-                marker.userData.pointIndex =
-                    0;
-
-
-                marker.userData.isAnnotationMarker =
-                    true;
-
-
-                state.annotationObjects.add(
-                    marker
-                );
-
-
-                // =============================================
-                // Label position: nearest screen edge
-                // =============================================
-
-                labelPosition =
-                    computeEdgeLabelPosition(
-                        pointPosition
-                    );
-
-
-                // =============================================
-                // Leader line
-                //
-                // Exactly one straight segment:
-                //
-                // POINT ----------------> nearest screen edge
-                // =============================================
-
-                const leader =
-                    createLeaderLine(
-                        pointPosition,
-                        labelPosition,
-                        color,
-                        groupOpacity,
-                        viewportWidth,
-                        viewportHeight
-                    );
-
-
-                leader.userData.annotationId =
-                    ann.id;
-
-
-                state.annotationObjects.add(
-                    leader
-                );
-
-
-                // ---------------------------------------------
-                // Occlusion
-                // ---------------------------------------------
-
-                occlusionCheckPos =
-                    pointPosition.clone();
+                    normalDirection =
+                        null;
+                }
             }
 
 
             // =================================================
-            // LINE / POLYGON
+            // Legacy annotation fallback
             // =================================================
 
-            else if (
-                ann.type === 'line' ||
-                ann.type === 'polygon'
+            /*
+             * Old point annotations created before
+             * nx / ny / nz were stored do not have
+             * a true surface normal.
+             *
+             * Only for those points:
+             * use model-center -> point direction.
+             *
+             * Newly created points should never use this.
+             */
+
+            if (
+                !normalDirection
             ) {
 
-                const positions =
-                    [];
+                normalDirection =
+                    new THREE.Vector3()
+                        .subVectors(
+                            pointPosition,
+                            modelCenter
+                        );
 
 
                 if (
-                    ann.projectedEdges &&
-                    ann.surfaceProjection &&
-                    ann.projectedEdges.length > 0
+                    normalDirection.lengthSq() <
+                    1e-12
                 ) {
 
-                    ann.projectedEdges.forEach(
-                        (
-                            edge,
-                            edgeIdx
-                        ) => {
-
-                            const startIdx =
-                                edgeIdx === 0
-                                    ? 0
-                                    : 1;
-
-
-                            for (
-                                let j = startIdx;
-                                j < edge.length;
-                                j++
-                            ) {
-
-                                const ep =
-                                    toDisplayCoords(
-                                        edge[j]
-                                    );
-
-
-                                positions.push(
-                                    ep.x,
-                                    ep.y,
-                                    ep.z
-                                );
-                            }
-                        }
-                    );
-
-                } else {
-
-                    const points =
-                        ann.points.map(
-                            p => {
-
-                                const d =
-                                    toDisplayCoords(
-                                        p
-                                    );
-
-
-                                return new THREE.Vector3(
-                                    d.x,
-                                    d.y,
-                                    d.z
-                                );
-                            }
-                        );
-
-
-                    if (
-                        ann.type === 'polygon' &&
-                        points.length > 0
-                    ) {
-
-                        points.push(
-                            points[0].clone()
-                        );
-                    }
-
-
-                    points.forEach(
-                        p => {
-
-                            positions.push(
-                                p.x,
-                                p.y,
-                                p.z
-                            );
-                        }
+                    normalDirection.set(
+                        0,
+                        1,
+                        0
                     );
                 }
 
 
-                const lineGeometry =
-                    new LineGeometry();
+                normalDirection.normalize();
+            }
 
 
-                lineGeometry.setPositions(
-                    positions
-                );
+            // =================================================
+            // Leader length
+            // =================================================
+
+            const leaderLength =
+                maxDim
+                *
+                NORMAL_LEADER_LENGTH_FACTOR;
 
 
-                const lineMaterial =
-                    new LineMaterial({
+            // =================================================
+            // Label position
+            //
+            // P2 = P1 + normal × length
+            // =================================================
 
-                        color:
-                            color,
-
-                        linewidth:
-                            3,
-
-                        transparent:
-                            groupOpacity < 1,
-
-                        opacity:
-                            groupOpacity,
-
-                        resolution:
-                            new THREE.Vector2(
-                                viewportWidth,
-                                viewportHeight
-                            ),
-
-                        polygonOffset:
-                            true,
-
-                        polygonOffsetFactor:
-                            -4,
-
-                        polygonOffsetUnits:
-                            -4
-                    });
-
-
-                const line =
-                    new Line2(
-                        lineGeometry,
-                        lineMaterial
+            labelPosition =
+                pointPosition
+                    .clone()
+                    .add(
+                        normalDirection
+                            .clone()
+                            .multiplyScalar(
+                                leaderLength
+                            )
                     );
 
 
-                line.userData.annotationId =
-                    ann.id;
+            // =================================================
+            // Leader line
+            // =================================================
+
+            const leaderGeometry =
+                new LineGeometry();
 
 
-                state.annotationObjects.add(
-                    line
+            leaderGeometry.setPositions([
+
+                pointPosition.x,
+                pointPosition.y,
+                pointPosition.z,
+
+                labelPosition.x,
+                labelPosition.y,
+                labelPosition.z
+            ]);
+
+
+            const leaderMaterial =
+                new LineMaterial({
+
+                    color:
+                        color,
+
+                    linewidth:
+                        3,
+
+                    transparent:
+                        groupOpacity < 1,
+
+                    opacity:
+                        groupOpacity,
+
+                    resolution:
+                        new THREE.Vector2(
+                            getViewportWidth(),
+                            getViewportHeight()
+                        ),
+
+                    depthTest:
+                        false
+                });
+
+
+            const leader =
+                new Line2(
+                    leaderGeometry,
+                    leaderMaterial
                 );
 
 
-                // ---------------------------------------------
-                // Point markers
-                // ---------------------------------------------
+            leader.userData.annotationId =
+                ann.id;
 
-                ann.points.forEach(
+
+            leader.renderOrder =
+                9998;
+
+
+            state.annotationObjects.add(
+                leader
+            );
+
+
+            // ------------------------------------------------
+            // Occlusion
+            // ------------------------------------------------
+
+            occlusionCheckPos =
+                pointPosition.clone();
+        }
+
+
+        // ====================================================
+        // LINE / POLYGON
+        // ====================================================
+
+        else if (
+            ann.type === 'line' ||
+            ann.type === 'polygon'
+        ) {
+
+            const positions =
+                [];
+
+
+            if (
+                ann.projectedEdges &&
+                ann.surfaceProjection &&
+                ann.projectedEdges.length > 0
+            ) {
+
+                ann.projectedEdges.forEach(
                     (
-                        p,
-                        index
+                        edge,
+                        edgeIdx
                     ) => {
 
-                        const geometry =
-                            new THREE.SphereGeometry(
-                                0.02,
-                                12,
-                                12
+                        const startIdx =
+                            edgeIdx === 0
+                                ? 0
+                                : 1;
+
+
+                        for (
+                            let j = startIdx;
+                            j < edge.length;
+                            j++
+                        ) {
+
+                            const ep =
+                                toDisplayCoords(
+                                    edge[j]
+                                );
+
+
+                            positions.push(
+                                ep.x,
+                                ep.y,
+                                ep.z
                             );
-
-
-                        const material =
-                            new THREE.MeshBasicMaterial({
-
-                                color,
-
-                                transparent:
-                                    groupOpacity < 1,
-
-                                opacity:
-                                    groupOpacity
-                            });
-
-
-                        const marker =
-                            new THREE.Mesh(
-                                geometry,
-                                material
-                            );
-
-
-                        const vp =
-                            toDisplayCoords(
-                                p
-                            );
-
-
-                        marker.position.set(
-                            vp.x,
-                            vp.y,
-                            vp.z
-                        );
-
-
-                        marker.scale.setScalar(
-
-                            Math.pow(
-                                maxDim,
-                                0.8
-                            )
-                            *
-                            0.018
-                            *
-                            state.pointSizeMultiplier
-                        );
-
-
-                        marker.userData.annotationId =
-                            ann.id;
-
-
-                        marker.userData.pointIndex =
-                            index;
-
-
-                        marker.userData.isAnnotationMarker =
-                            true;
-
-
-                        state.annotationObjects.add(
-                            marker
-                        );
+                        }
                     }
                 );
 
+            } else {
 
-                // ---------------------------------------------
-                // Label anchor: centroid for polygon,
-                // first point for line
-                // ---------------------------------------------
+                const points =
+                    ann.points.map(
+                        p => {
 
-                let anchorPosition =
-                    null;
+                            const d =
+                                toDisplayCoords(
+                                    p
+                                );
+
+
+                            return new THREE.Vector3(
+                                d.x,
+                                d.y,
+                                d.z
+                            );
+                        }
+                    );
 
 
                 if (
                     ann.type === 'polygon' &&
-                    ann.points.length > 0
+                    points.length > 0
                 ) {
 
-                    const centroid =
-                        ann.points.reduce(
-
-                            (
-                                acc,
-                                p
-                            ) => {
-
-                                const d =
-                                    toDisplayCoords(
-                                        p
-                                    );
-
-
-                                return {
-
-                                    x:
-                                        acc.x +
-                                        d.x,
-
-                                    y:
-                                        acc.y +
-                                        d.y,
-
-                                    z:
-                                        acc.z +
-                                        d.z
-                                };
-                            },
-
-                            {
-                                x: 0,
-                                y: 0,
-                                z: 0
-                            }
-                        );
-
-
-                    anchorPosition =
-                        new THREE.Vector3(
-
-                            centroid.x /
-                            ann.points.length,
-
-                            centroid.y /
-                            ann.points.length,
-
-                            centroid.z /
-                            ann.points.length
-                        );
-
-                } else if (
-                    ann.points.length > 0
-                ) {
-
-                    const lp =
-                        toDisplayCoords(
-                            ann.points[0]
-                        );
-
-
-                    anchorPosition =
-                        new THREE.Vector3(
-                            lp.x,
-                            lp.y,
-                            lp.z
-                        );
-                }
-
-
-                // ---------------------------------------------
-                // Label position: nearest screen edge
-                // ---------------------------------------------
-
-                if (
-                    anchorPosition
-                ) {
-
-                    labelPosition =
-                        computeEdgeLabelPosition(
-                            anchorPosition
-                        );
-
-
-                    occlusionCheckPos =
-                        anchorPosition;
-
-
-                    const leader =
-                        createLeaderLine(
-                            anchorPosition,
-                            labelPosition,
-                            color,
-                            groupOpacity,
-                            viewportWidth,
-                            viewportHeight
-                        );
-
-
-                    leader.userData.annotationId =
-                        ann.id;
-
-
-                    state.annotationObjects.add(
-                        leader
+                    points.push(
+                        points[0].clone()
                     );
                 }
+
+
+                points.forEach(p => {
+
+                    positions.push(
+                        p.x,
+                        p.y,
+                        p.z
+                    );
+                });
             }
 
 
-            // =================================================
-            // SURFACE
-            // =================================================
+            // ------------------------------------------------
+            // Line geometry
+            // ------------------------------------------------
 
-            else if (
-                ann.type === 'surface' &&
-                ann.faceData
-            ) {
+            const lineGeometry =
+                new LineGeometry();
 
-                const surfaceMesh =
-                    renderSurfaceAnnotation(
-                        ann,
+
+            lineGeometry.setPositions(
+                positions
+            );
+
+
+            const lineMaterial =
+                new LineMaterial({
+
+                    color:
                         color,
-                        groupOpacity
-                    );
+
+                    linewidth:
+                        3,
+
+                    transparent:
+                        groupOpacity < 1,
+
+                    opacity:
+                        groupOpacity,
+
+                    resolution:
+                        new THREE.Vector2(
+                            getViewportWidth(),
+                            getViewportHeight()
+                        ),
+
+                    polygonOffset:
+                        true,
+
+                    polygonOffsetFactor:
+                        -4,
+
+                    polygonOffsetUnits:
+                        -4
+                });
 
 
-                if (
-                    surfaceMesh
-                ) {
-
-                    surfaceMesh.userData.annotationId =
-                        ann.id;
-
-
-                    state.annotationObjects.add(
-                        surfaceMesh
-                    );
-                }
+            const line =
+                new Line2(
+                    lineGeometry,
+                    lineMaterial
+                );
 
 
-                if (
-                    ann.points &&
-                    ann.points.length > 0
-                ) {
+            line.userData.annotationId =
+                ann.id;
 
-                    const sp =
-                        toDisplayCoords(
-                            ann.points[0]
+
+            state.annotationObjects.add(
+                line
+            );
+
+
+            // ------------------------------------------------
+            // Point markers
+            // ------------------------------------------------
+
+            ann.points.forEach(
+                (
+                    p,
+                    index
+                ) => {
+
+                    const geometry =
+                        new THREE.SphereGeometry(
+                            0.02,
+                            12,
+                            12
                         );
 
 
-                    const anchorPosition =
-                        new THREE.Vector3(
-                            sp.x,
-                            sp.y,
-                            sp.z
-                        );
+                    const material =
+                        new THREE.MeshBasicMaterial({
 
-
-                    labelPosition =
-                        computeEdgeLabelPosition(
-                            anchorPosition
-                        );
-
-
-                    occlusionCheckPos =
-                        anchorPosition;
-
-
-                    const leader =
-                        createLeaderLine(
-                            anchorPosition,
-                            labelPosition,
                             color,
-                            groupOpacity,
-                            viewportWidth,
-                            viewportHeight
+
+                            transparent:
+                                groupOpacity < 1,
+
+                            opacity:
+                                groupOpacity
+                        });
+
+
+                    const marker =
+                        new THREE.Mesh(
+                            geometry,
+                            material
                         );
 
 
-                    leader.userData.annotationId =
+                    const vp =
+                        toDisplayCoords(
+                            p
+                        );
+
+
+                    marker.position.set(
+                        vp.x,
+                        vp.y,
+                        vp.z
+                    );
+
+
+                    marker.scale.setScalar(
+                        Math.pow(
+                            maxDim,
+                            0.8
+                        )
+                        *
+                        0.018
+                        *
+                        state.pointSizeMultiplier
+                    );
+
+
+                    marker.userData.annotationId =
                         ann.id;
 
 
+                    marker.userData.pointIndex =
+                        index;
+
+
+                    marker.userData.isAnnotationMarker =
+                        true;
+
+
                     state.annotationObjects.add(
-                        leader
+                        marker
                     );
                 }
-            }
+            );
 
 
-            // =================================================
-            // BOX
-            // =================================================
+            // ------------------------------------------------
+            // Polygon label
+            // ------------------------------------------------
 
-            else if (
-                ann.type === 'box' &&
-                ann.boxData
+            if (
+                ann.type === 'polygon' &&
+                ann.points.length > 0
             ) {
 
-                const boxObjects =
-                    renderBoxAnnotation(
-                        ann,
-                        color,
-                        maxDim,
-                        groupOpacity
-                    );
+                const centroid =
+                    ann.points.reduce(
+
+                        (
+                            acc,
+                            p
+                        ) => {
+
+                            const d =
+                                toDisplayCoords(
+                                    p
+                                );
 
 
-                if (
-                    boxObjects
-                ) {
+                            return {
 
-                    boxObjects.forEach(
-                        obj => {
+                                x:
+                                    acc.x + d.x,
 
-                            obj.userData.annotationId =
-                                ann.id;
+                                y:
+                                    acc.y + d.y,
 
+                                z:
+                                    acc.z + d.z
+                            };
+                        },
 
-                            state.annotationObjects.add(
-                                obj
-                            );
+                        {
+                            x: 0,
+                            y: 0,
+                            z: 0
                         }
-                    );
-                }
-
-
-                const bc =
-                    toDisplayCoords(
-                        ann.boxData.center
-                    );
-
-
-                const anchorPosition =
-                    new THREE.Vector3(
-                        bc.x,
-                        bc.y,
-                        bc.z
                     );
 
 
                 labelPosition =
-                    computeEdgeLabelPosition(
-                        anchorPosition
+                    new THREE.Vector3(
+
+                        centroid.x /
+                        ann.points.length,
+
+                        centroid.y /
+                        ann.points.length
+                        +
+                        labelOffset,
+
+                        centroid.z /
+                        ann.points.length
                     );
 
 
                 occlusionCheckPos =
-                    anchorPosition;
+                    new THREE.Vector3(
 
+                        centroid.x /
+                        ann.points.length,
 
-                const leader =
-                    createLeaderLine(
-                        anchorPosition,
-                        labelPosition,
-                        color,
-                        groupOpacity,
-                        viewportWidth,
-                        viewportHeight
+                        centroid.y /
+                        ann.points.length,
+
+                        centroid.z /
+                        ann.points.length
                     );
 
-
-                leader.userData.annotationId =
-                    ann.id;
-
-
-                state.annotationObjects.add(
-                    leader
-                );
-            }
-
-
-            // =================================================
-            // LABEL
-            // =================================================
-
-            if (
-                ann.name &&
-                labelPosition
+            } else if (
+                ann.points.length > 0
             ) {
 
-                const label =
-                    createScaledTextSprite(
-                        ann.name,
-                        group.color,
-                        labelPosition,
-                        0.8
+                const lp =
+                    toDisplayCoords(
+                        ann.points[0]
                     );
 
 
-                if (
-                    groupOpacity < 1
-                ) {
+                labelPosition =
+                    new THREE.Vector3(
 
-                    label.material.opacity =
-                        groupOpacity;
-                }
+                        lp.x,
+
+                        lp.y +
+                        labelOffset,
+
+                        lp.z
+                    );
 
 
-                label.userData.annotationId =
+                occlusionCheckPos =
+                    new THREE.Vector3(
+                        lp.x,
+                        lp.y,
+                        lp.z
+                    );
+            }
+        }
+
+
+        // ====================================================
+        // SURFACE
+        // ====================================================
+
+        else if (
+            ann.type === 'surface' &&
+            ann.faceData
+        ) {
+
+            const surfaceMesh =
+                renderSurfaceAnnotation(
+                    ann,
+                    color,
+                    groupOpacity
+                );
+
+
+            if (surfaceMesh) {
+
+                surfaceMesh.userData.annotationId =
                     ann.id;
 
 
-                if (
-                    occlusionCheckPos
-                ) {
-
-                    label.userData.occlusionCheckPosition =
-                        occlusionCheckPos;
-                }
-
-
                 state.annotationObjects.add(
-                    label
+                    surfaceMesh
                 );
             }
+
+
+            if (
+                ann.points &&
+                ann.points.length > 0
+            ) {
+
+                const sp =
+                    toDisplayCoords(
+                        ann.points[0]
+                    );
+
+
+                labelPosition =
+                    new THREE.Vector3(
+
+                        sp.x,
+
+                        sp.y +
+                        labelOffset,
+
+                        sp.z
+                    );
+
+
+                occlusionCheckPos =
+                    new THREE.Vector3(
+                        sp.x,
+                        sp.y,
+                        sp.z
+                    );
+            }
         }
-    );
+
+
+        // ====================================================
+        // BOX
+        // ====================================================
+
+        else if (
+            ann.type === 'box' &&
+            ann.boxData
+        ) {
+
+            const boxObjects =
+                renderBoxAnnotation(
+                    ann,
+                    color,
+                    maxDim,
+                    groupOpacity
+                );
+
+
+            if (boxObjects) {
+
+                boxObjects.forEach(
+                    obj => {
+
+                        obj.userData.annotationId =
+                            ann.id;
+
+
+                        state.annotationObjects.add(
+                            obj
+                        );
+                    }
+                );
+            }
+
+
+            const bc =
+                toDisplayCoords(
+                    ann.boxData.center
+                );
+
+
+            const size =
+                ann.boxData.size;
+
+
+            const yOffset =
+                state.isFlipped
+
+                    ? -(
+                        size.y / 2 +
+                        labelOffset
+                    )
+
+                    : (
+                        size.y / 2 +
+                        labelOffset
+                    );
+
+
+            labelPosition =
+                new THREE.Vector3(
+
+                    bc.x,
+
+                    bc.y +
+                    yOffset,
+
+                    bc.z
+                );
+
+
+            occlusionCheckPos =
+                new THREE.Vector3(
+                    bc.x,
+                    bc.y,
+                    bc.z
+                );
+        }
+
+
+        // ====================================================
+        // LABEL
+        // ====================================================
+
+        if (
+            ann.name &&
+            labelPosition
+        ) {
+
+            const label =
+                createScaledTextSprite(
+                    ann.name,
+                    group.color,
+                    labelPosition,
+                    0.8
+                );
+
+
+            if (
+                groupOpacity < 1
+            ) {
+
+                label.material.opacity =
+                    groupOpacity;
+            }
+
+
+            label.userData.annotationId =
+                ann.id;
+
+
+            if (
+                occlusionCheckPos
+            ) {
+
+                label.userData.occlusionCheckPosition =
+                    occlusionCheckPos;
+            }
+
+
+            state.annotationObjects.add(
+                label
+            );
+        }
+    });
 
 
     // --------------------------------------------------------
     // Measurements
     // --------------------------------------------------------
 
-    if (
-        _renderMeasurements
-    ) {
+    if (_renderMeasurements) {
 
         _renderMeasurements();
     }
@@ -1387,16 +1101,11 @@ export function renderSurfaceAnnotation(
 
             const mesh =
                 state.modelMeshes[
-                    parseInt(
-                        meshIdx
-                    )
+                    parseInt(meshIdx)
                 ];
 
 
-            if (
-                !mesh
-            ) {
-
+            if (!mesh) {
                 return;
             }
 
@@ -1417,9 +1126,7 @@ export function renderSurfaceAnnotation(
                     let c;
 
 
-                    if (
-                        geometry.index
-                    ) {
+                    if (geometry.index) {
 
                         a =
                             geometry.index.getX(
@@ -1443,10 +1150,8 @@ export function renderSurfaceAnnotation(
                         a =
                             faceIdx * 3;
 
-
                         b =
                             faceIdx * 3 + 1;
-
 
                         c =
                             faceIdx * 3 + 2;
