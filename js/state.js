@@ -1,0 +1,390 @@
+// js/state.js - Central state management
+import * as THREE from 'three';
+
+// ============ Version ============
+export const APP_VERSION = '1.4.0';
+
+// ============ Application State ============
+export const state = {
+    // Scene
+    scene: null,
+    camera: null,
+    renderer: null,
+    controls: null,
+    perspectiveCamera: null,
+    orthographicCamera: null,
+    isOrthographic: false,
+
+    // ViewHelper
+    viewHelper: null,
+    viewHelperRenderer: null,
+    clock: new THREE.Clock(),
+
+    // Lighting & Background
+    ambientLight: null,
+    dirLight1: null,
+    dirLight2: null,
+    lightFollowsCamera: true,
+    brightness: 100,            // 0-300 (slider %); setBrightness() is the sole writer
+    fixedLightAzimuth: 0,
+    fixedLightElevation: 45,
+    backgroundColor: '#041D31',
+
+    // Model
+    isFlipped: false,
+    currentModel: null,
+    modelFileName: '',
+    originalMaterials: new Map(),
+    displayMode: 'texture', // 'texture', 'vertexColors', 'mesh', 'wireframe'
+    hasVertexColors: false,
+    modelOpacity: 1.0,
+    modelMeshes: [],
+    modelBoundingSize: 1,
+    modelUpAxis: 'z-up', // 'y-up' or 'z-up'
+    webglContextLost: false,
+    bvhAvailable: false,        // Whether BVH acceleration is available for current model
+    loadedModelFiles: [],       // Original File objects for model export
+    modelHash: null,            // SHA-256 hex of the primary model file (for annotation/model binding)
+
+    // UI Multipliers
+    pointSizeMultiplier: 1.0,
+    textSizeMultiplier: 1.0,
+    
+    // User preferences
+    defaultAuthor: '',
+    defaultAuthorOrcid: '',
+    defaultLanguage: '',      // BCP-47 tag stamped on new entries; '' = browser default
+    measurementUnit: 'units',
+    measurementLineColor: '#AA8101',
+    measurementPointColor: '#FFFFFF',
+    
+    // Model display colors
+    meshColor: '#888888',
+    wireframeColor: '#AA8101',
+    
+    // PDF export settings
+    pdfTitle: '',
+    pdfInstitution: '',
+    pdfProject: '',
+    pdfAccentColor: '#AA8101',
+    pdfPageSize: 'a4',
+    pdfOrientation: 'portrait',
+    pdfDpi: 150,
+    pdfCameraDistance: 1.0,
+    pdfCameraAngle: 60,
+
+    // Screenshot settings
+    screenshotQuality: 2, // Multiplier: 1 = standard, 2 = high, 4 = ultra
+
+    // Six-view plate settings
+    platePngWidth: 4000,        // Total plate width in px for the PNG export
+    platePdfDpi: 300,           // Render resolution for the PDF plate
+    plateCellShape: 'net',      // 'net' = per-face cells (tight), 'uniform' = equal cells
+
+    // Tools
+    currentTool: null, // 'point', 'line', 'polygon', 'surface', 'box', 'measure'
+    tempPoints: [],
+    tempProjectedEdges: [],
+    tempLine: null,
+
+    // Surface projection settings
+    surfaceProjectionEnabled: true,
+    projectionDeviationRelative: 0.20,
+    projectionDeviationAbsolute: 0.03,
+
+    // Measurements
+    measurePoints: [],
+    measureMarkers: [],
+    measureLine: null,
+    measureLabel: null,  // Live distance label during multi-point measurement
+    measurements: [],
+    isMultiPointMeasure: false,  // Whether currently in multi-point measurement mode
+
+    // Data
+    groups: [],
+    annotations: [],
+    selectedAnnotation: null,
+    editingAnnotation: null,
+
+    // Model Information
+    modelInfo: { entries: [], metadata: null },
+    editingModelInfo: false,
+
+    // Point dragging
+    isDraggingPoint: false,
+    draggedAnnotation: null,
+    draggedPointIndex: -1,
+    draggedMarker: null,
+    wasDragging: false,
+    pendingPointPosition: null,
+
+    // Surface painting
+    isPaintingSurface: false,
+    surfaceBrushSize: 5,
+    paintedFaces: new Set(),       // Set<number> - numeric encoded face IDs
+    surfaceHighlightMesh: null,
+    surfaceHighlightDirty: false,
+    surfaceHighlightRAF: null,
+    isErasingMode: false,
+    pendingFaces: [],               // Faces added since last highlight update
+    needsFullHighlightRebuild: false, // Flag: erase occurred, need full rebuild
+    highlightVertexCount: 0,        // Current vertex count in highlight buffer
+    surfaceStrokeHistory: [],       // Array of { added: Set<number>, removed: Set<number> }
+    currentStrokeAdded: null,       // Faces added in current stroke
+    currentStrokeRemoved: null,     // Faces removed (erased) in current stroke
+
+    // Cutting plane
+    cuttingPlaneActive: false,
+
+    // Box annotation
+    selectedBoxAnnotation: null,
+    isManipulatingBox: false,
+    boxManipulationMode: null,
+    boxDragStartMouse: null,
+    boxDragStartData: null,
+    activeBoxHandle: null,
+    boxHandleObjects: [],
+    
+    // Box placement mode (new box creation workflow)
+    pendingBoxData: null,        // Temporary box data during placement
+    isBoxPlacementMode: false,   // True while placing a new box
+    pendingBoxClickPosition: null, // Original click position for popup
+    boxEditUnlocked: null,       // ID of box currently unlocked for editing
+
+    // Three.js annotation objects
+    annotationObjects: new THREE.Group(),
+
+    // Pending files (for dialogs)
+    pendingObjFile: null,
+    pendingPlyFile: null,
+    pendingStlFile: null,
+
+    // UI state
+    pendingLinks: [],
+    editingGroup: null,
+    editingEntryId: null,
+    isAddingEntry: false,
+    confirmCallback: null,
+    scalebarConfirmCallback: null,
+    scalebarNoSwitchCallback: null,
+
+    // Popup dragging
+    isDraggingPopup: false,
+    popupDragOffsetX: 0,
+    popupDragOffsetY: 0,
+
+    // Note: Two-finger box rotation gesture state is managed locally in
+    // event-listeners.js to keep the gesture handling self-contained.
+};
+
+// ============ DOM Elements ============
+export const dom = {};
+
+export function initDomReferences() {
+    // Canvas & file inputs
+    dom.canvas = document.getElementById('canvas');
+    dom.fileInput = document.getElementById('file-input');
+    dom.importInput = document.getElementById('import-input');
+    dom.objMaterialInput = document.getElementById('obj-material-input');
+    dom.plyTextureInput = document.getElementById('ply-texture-input');
+
+    // Dialogs
+    dom.objDialogOverlay = document.getElementById('obj-dialog-overlay');
+    dom.objLoadPlain = document.getElementById('obj-load-plain');
+    dom.objAddMaterials = document.getElementById('obj-add-materials');
+    dom.plyDialogOverlay = document.getElementById('ply-dialog-overlay');
+    dom.plyLoadPlain = document.getElementById('ply-load-plain');
+    dom.plyAddTexture = document.getElementById('ply-add-texture');
+    dom.stlDialogOverlay = document.getElementById('stl-dialog-overlay');
+    dom.stlLoadBtn = document.getElementById('stl-load-btn');
+
+    // Toolbar buttons
+    dom.btnLoad = document.getElementById('btn-load');
+    dom.btnImportMenu = document.getElementById('btn-import-menu');
+    dom.importDropdown = document.getElementById('import-dropdown');
+    dom.btnTexture = document.getElementById('btn-texture');
+    dom.btnPoint = document.getElementById('btn-point');
+    dom.btnLine = document.getElementById('btn-line');
+    dom.btnPolygon = document.getElementById('btn-polygon');
+    dom.btnSurface = document.getElementById('btn-surface');
+    dom.btnBox = document.getElementById('btn-box');
+    dom.btnMeasure = document.getElementById('btn-measure');
+    dom.btnScreenshot = document.getElementById('btn-screenshot');
+    dom.screenshotDropdown = document.getElementById('screenshot-dropdown');
+    dom.screenshotDropdownMenu = document.getElementById('screenshot-dropdown-menu');
+    dom.btnScreenshotSingle = document.getElementById('btn-screenshot-single');
+    dom.btnExportViews = document.getElementById('btn-export-views');
+    dom.plateFormatOverlay = document.getElementById('plate-format-overlay');
+    dom.plateFormatPng = document.getElementById('plate-format-png');
+    dom.plateFormatPdf = document.getElementById('plate-format-pdf');
+    dom.plateFormatDialogClose = document.getElementById('plate-format-dialog-close');
+    dom.btnExport = document.getElementById('btn-export');
+    dom.btnExportJsonld = document.getElementById('btn-export-jsonld');
+    dom.btnExportPdf = document.getElementById('btn-export-pdf');
+    dom.btnExportModel = document.getElementById('btn-export-model');
+    dom.exportDropdown = document.getElementById('export-dropdown');
+    dom.exportDropdownMenu = document.getElementById('export-dropdown-menu');
+    dom.btnImport = document.getElementById('btn-import');
+    dom.btnShare = document.getElementById('btn-share');
+    dom.btnAddGroup = document.getElementById('btn-add-group');
+
+    // Brush controls
+    dom.brushDisplay = document.getElementById('brush-display');
+    dom.brushSlider = document.getElementById('brush-slider');
+    dom.brushValue = document.getElementById('brush-value');
+
+    // Annotation popup
+    dom.annotationPopup = document.getElementById('annotation-popup');
+    dom.popupTitle = document.getElementById('popup-title');
+    dom.annName = document.getElementById('ann-name');
+    dom.annGroup = document.getElementById('ann-group');
+    
+    // Inline group creation
+    dom.btnAddGroupInline = document.getElementById('btn-add-group-inline');
+    dom.inlineNewGroupForm = document.getElementById('inline-new-group-form');
+    dom.inlineGroupName = document.getElementById('inline-group-name');
+    dom.inlineGroupColor = document.getElementById('inline-group-color');
+    dom.btnCancelInlineGroup = document.getElementById('btn-cancel-inline-group');
+    dom.btnSaveInlineGroup = document.getElementById('btn-save-inline-group');
+    dom.surfaceProjectionToggle = document.getElementById('surface-projection-toggle');
+    dom.annSurfaceProjection = document.getElementById('ann-surface-projection');
+    dom.annDescription = document.getElementById('ann-description');
+    dom.annAuthor = document.getElementById('ann-author');
+    dom.annLinks = document.getElementById('ann-links');
+    dom.annNewLink = document.getElementById('ann-new-link');
+    dom.btnAddLink = document.getElementById('btn-add-link');
+    dom.btnPopupSave = document.getElementById('btn-popup-save');
+    dom.btnPopupCancel = document.getElementById('btn-popup-cancel');
+    dom.btnPopupDelete = document.getElementById('btn-popup-delete');
+
+    // Entries
+    dom.entriesContainer = document.getElementById('entries-container');
+    dom.entriesList = document.getElementById('entries-list');
+    dom.btnAddEntry = document.getElementById('btn-add-entry');
+    dom.newEntryForm = document.getElementById('new-entry-form');
+
+    // Confirm dialogs
+    dom.confirmOverlay = document.getElementById('confirm-overlay');
+    dom.confirmMessage = document.getElementById('confirm-message');
+    dom.confirmOk = document.getElementById('confirm-ok');
+    dom.confirmCancel = document.getElementById('confirm-cancel');
+
+    // Annotation clear dialog
+    dom.annotationClearOverlay = document.getElementById('annotation-clear-overlay');
+    dom.annotationClearCancel = document.getElementById('annotation-clear-cancel');
+    dom.annotationClearDiscard = document.getElementById('annotation-clear-discard');
+    dom.annotationClearExport = document.getElementById('annotation-clear-export');
+
+    // Refresh confirm dialog
+    dom.refreshConfirmOverlay = document.getElementById('refresh-confirm-overlay');
+    dom.refreshConfirmCancel = document.getElementById('refresh-confirm-cancel');
+    dom.refreshConfirmRefresh = document.getElementById('refresh-confirm-refresh');
+    dom.refreshConfirmExport = document.getElementById('refresh-confirm-export');
+
+    // Scalebar confirm
+    dom.scalebarConfirmOverlay = document.getElementById('scalebar-confirm-overlay');
+    dom.scalebarNoSwitch = document.getElementById('scalebar-no-switch');
+    dom.scalebarSwitch = document.getElementById('scalebar-switch');
+
+    // Model info
+    dom.modelInfoItem = document.getElementById('model-info-item');
+    dom.modelInfoSubtitle = document.getElementById('model-info-subtitle');
+    dom.modelStats = document.getElementById('model-stats');
+    dom.faceCountDisplay = document.getElementById('face-count');
+
+    // Group popup
+    dom.groupPopup = document.getElementById('group-popup');
+    dom.groupPopupTitle = document.getElementById('group-popup-title');
+    dom.groupName = document.getElementById('group-name');
+    dom.groupColor = document.getElementById('group-color');
+    dom.groupOpacity = document.getElementById('group-opacity');
+    dom.groupOpacityValue = document.getElementById('group-opacity-value');
+    dom.btnGroupSave = document.getElementById('btn-group-save');
+    dom.btnGroupCancel = document.getElementById('btn-group-cancel');
+    dom.btnGroupDelete = document.getElementById('btn-group-delete');
+
+    // Sidebar
+    dom.groupsContainer = document.getElementById('groups-container');
+    dom.noGroups = document.getElementById('no-groups');
+    dom.searchInput = document.getElementById('search-input');
+
+    // Measurements
+    dom.measurePanels = document.getElementById('measure-panels');
+    dom.measurementDisplay = document.getElementById('measurement-display');
+    dom.measurementsList = document.getElementById('measurements-list');
+    dom.cuttingPlaneDisplay = document.getElementById('cutting-plane-display');
+
+    // Tool Help Panel
+    dom.toolHelp = document.getElementById('tool-help');
+    dom.toolHelpTitle = document.getElementById('tool-help-title');
+    dom.toolHelpContent = document.getElementById('tool-help-content');
+
+    // Status & loading
+    dom.loading = document.getElementById('loading');
+    dom.status = document.getElementById('status');
+
+    // Sliders
+    dom.brightnessSlider = document.getElementById('brightness-slider');
+    dom.brightnessValue = document.getElementById('brightness-value');
+    dom.opacitySlider = document.getElementById('opacity-slider');
+    dom.opacityValue = document.getElementById('opacity-value');
+    dom.lightToggle = document.getElementById('light-toggle');
+    dom.lightDirectionRow = document.getElementById('light-direction-row');
+    dom.lightAzimuthSlider = document.getElementById('light-azimuth-slider');
+    dom.lightAzimuthValue = document.getElementById('light-azimuth-value');
+    dom.lightElevationSlider = document.getElementById('light-elevation-slider');
+    dom.lightElevationValue = document.getElementById('light-elevation-value');
+    dom.pointSizeSlider = document.getElementById('point-size-slider');
+    dom.pointSizeValue = document.getElementById('point-size-value');
+    dom.textSizeSlider = document.getElementById('text-size-slider');
+    dom.textSizeValue = document.getElementById('text-size-value');
+    dom.backgroundColorPicker = document.getElementById('background-color-picker');
+    dom.slidersPanel = document.getElementById('sliders-panel');
+    dom.slidersPanelToggle = document.getElementById('sliders-panel-toggle');
+
+    // Modals
+    dom.aboutOverlay = document.getElementById('about-overlay');
+    dom.btnAbout = document.getElementById('btn-about');
+    dom.aboutModalClose = document.getElementById('about-modal-close');
+    dom.manualOverlay = document.getElementById('manual-overlay');
+    dom.btnManual = document.getElementById('btn-manual');
+    dom.manualModalClose = document.getElementById('manual-modal-close');
+    dom.btnDownloadManual = document.getElementById('btn-download-manual');
+    dom.legalOverlay = document.getElementById('legal-overlay');
+    dom.btnLegal = document.getElementById('btn-legal');
+    dom.legalModalClose = document.getElementById('legal-modal-close');
+    
+    // Settings modal
+    dom.btnSettings = document.getElementById('btn-settings');
+    dom.settingsOverlay = document.getElementById('settings-overlay');
+    dom.settingsModalClose = document.getElementById('settings-modal-close');
+    dom.settingsDefaultAuthor = document.getElementById('settings-default-author');
+    dom.settingsDefaultAuthorOrcid = document.getElementById('settings-default-author-orcid');
+    dom.settingsDefaultLanguage = document.getElementById('settings-default-language');
+    dom.settingsMeasurementUnit = document.getElementById('settings-measurement-unit');
+    dom.settingsMeasurementUnitCustom = document.getElementById('settings-measurement-unit-custom');
+    dom.settingsMeasurementLineColor = document.getElementById('settings-measurement-line-color');
+    dom.settingsMeasurementPointColor = document.getElementById('settings-measurement-point-color');
+    dom.settingsPdfTitle = document.getElementById('settings-pdf-title');
+    dom.settingsPdfInstitution = document.getElementById('settings-pdf-institution');
+    dom.settingsPdfProject = document.getElementById('settings-pdf-project');
+    dom.settingsPdfAccentColor = document.getElementById('settings-pdf-accent-color');
+    dom.settingsPdfPageSize = document.getElementById('settings-pdf-page-size');
+    dom.settingsPdfOrientation = document.getElementById('settings-pdf-orientation');
+    dom.settingsPdfDpi = document.getElementById('settings-pdf-dpi');
+    dom.settingsPdfCameraDistance = document.getElementById('settings-pdf-camera-distance');
+    dom.settingsPdfCameraDistanceValue = document.getElementById('settings-pdf-camera-distance-value');
+    dom.settingsPdfCameraAngle = document.getElementById('settings-pdf-camera-angle');
+    dom.settingsPdfCameraAngleValue = document.getElementById('settings-pdf-camera-angle-value');
+    dom.settingsMeshColor = document.getElementById('settings-mesh-color');
+    dom.settingsWireframeColor = document.getElementById('settings-wireframe-color');
+    dom.settingsResetAll = document.getElementById('settings-reset-all');
+    dom.settingsScreenshotQuality = document.getElementById('settings-screenshot-quality');
+    dom.settingsPlatePngWidth = document.getElementById('settings-plate-png-width');
+    dom.settingsPlatePdfDpi = document.getElementById('settings-plate-pdf-dpi');
+    dom.settingsPlateCellShape = document.getElementById('settings-plate-cell-shape');
+    
+    // Camera toggle and flip toggle (now in sliders panel)
+    dom.cameraToggle = document.getElementById('camera-toggle');
+    dom.flipToggle = document.getElementById('flip-toggle');
+}

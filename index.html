@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MeshNotes</title>
+    <link rel="icon" type="image/svg+xml" href="icons/logo1.svg">
+
+    <!-- Progressive Web App: offline use + installable (Add to Home Screen) -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#041D31">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MeshNotes">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header id="header">
+        <h1><img src="icons/logo1.svg" alt="MeshNotes logo" class="header-logo" id="header-logo">MeshNotes <span class="subtitle">– 3D Annotation Tool for Research & Heritage</span></h1>
+        <div class="header-buttons">
+            <button id="btn-about">About</button>
+            <button id="btn-manual">Manual</button>
+            <button id="btn-legal">Legal / Data</button>
+        </div>
+    </header>
+
+    <!-- About Modal -->
+    <div id="about-overlay">
+        <div id="about-modal">
+            <div id="about-modal-header">
+                <h2>MeshNotes <span id="app-version" style="font-size: 0.5em; font-weight: normal; opacity: 0.7;"></span></h2>
+                <button id="about-modal-close">✕</button>
+            </div>
+            <div id="about-modal-content">
+                <section>
+                    <h3>About</h3>
+                    <p>
+                        <strong>MeshNotes</strong> is a free, browser-based tool for annotating 3D models with points, lines, polygons, surfaces, and boxes, 
+                        designed for cultural heritage documentation. It allows teams to collaboratively mark and describe features 
+                        on 3D models of archaeological sites, architecture, and artifacts (e.g. from photogrammetry, laser scanning, or structured light scanning).
+                    </p>
+                    <p>
+                        Key features include multi-entry annotations with version history, 
+                        measurement tools with configurable units, customizable groups with color coding and per-group opacity, 
+                        draggable points for editing, multiple display modes, and <strong>W3C Web Annotation</strong> compliant export/import for interoperability and team collaboration.
+                    </p>
+                    <p>
+                        The tool runs entirely in your browser — your 3D models and annotations stay on your computer by default. 
+                        The optional <strong>Share</strong> feature can upload files to meshnotes.org for 90 days to generate a shareable link, 
+                        but no data leaves your machine unless you explicitly choose to share. The export format follows the 
+                        <a href="https://www.w3.org/TR/annotation-model/" target="_blank">W3C Web Annotation Data Model</a>, 
+                        ensuring compatibility with IIIF-based systems and other annotation tools.
+                    </p>
+                </section>
+
+                <section>
+                    <h3>Standards &amp; Interoperability</h3>
+                    <p>
+                        MeshNotes is built on open standards so that annotations and metadata stay usable outside the tool.
+                        Annotations follow the <a href="https://www.w3.org/TR/annotation-model/" target="_blank">W3C Web Annotation Data Model</a>,
+                        and the structured metadata maps to <a href="https://cidoc-crm.org/" target="_blank">CIDOC CRM</a> (with CRMdig for the
+                        digitisation process), using community vocabularies such as <a href="https://www.getty.edu/research/tools/vocabularies/aat/" target="_blank">Getty AAT</a>,
+                        <a href="https://perio.do/" target="_blank">PeriodO</a>, and gazetteers (iDAI.gazetteer, Pleiades, GeoNames) for authority links.
+                    </p>
+                    <p>The exact formats MeshNotes writes are documented in three versioned specifications:</p>
+                    <ul style="margin: 12px 0 12px 20px; color: #ccc;">
+                        <li><a href="https://meshnotes.org/spec/annotation/v1/" target="_blank">Annotation format</a> &mdash; the W3C AnnotationCollection MeshNotes exports (.jsonld)</li>
+                        <li><a href="https://meshnotes.org/spec/selector/v1/" target="_blank">Selector format</a> &mdash; how 3D geometry (points, lines, polygons, surfaces, boxes) is encoded</li>
+                        <li><a href="https://meshnotes.org/spec/metadata/v1/" target="_blank">Metadata format</a> &mdash; the structured metadata block and its CIDOC CRM crosswalk</li>
+                    </ul>
+                    <p style="font-size: 12px; color: #888;">These choices target interoperability with IIIF-based systems and infrastructures such as NFDI4Objects, and keep the data citable and archivable.</p>
+                </section>
+
+                <section>
+                    <h3>Contact</h3>
+                    <div class="contact-info">
+                        <p><strong>Developer:</strong> Nils Schnorr</p>
+                        <p><strong>Email:</strong> <a href="mailto:nils.schnorr@uni-saarland.de">nils.schnorr@uni-saarland.de</a></p>
+                        <p><strong>Institution:</strong> Department of Classical Archaeology, Saarland University, Saarbrücken, Germany</p>
+                    </div>
+                </section>
+
+                <section>
+                    <h3>Credits & License</h3>
+                    <p>MeshNotes uses the following open-source libraries:</p>
+                    <ul style="margin: 12px 0 12px 20px; color: #ccc;">
+                        <li><a href="https://threejs.org/" target="_blank">Three.js</a> (MIT License) — 3D rendering</li>
+                        <li><a href="https://github.com/gkjohnson/three-mesh-bvh" target="_blank">three-mesh-bvh</a> (MIT License) — Accelerated raycasting &amp; surface projection</li>
+                        <li><a href="https://github.com/parallax/jsPDF" target="_blank">jsPDF</a> (MIT License) — PDF generation</li>
+                        <li><a href="https://github.com/Hopding/pdf-lib" target="_blank">pdf-lib</a> (MIT License) — Fillable PDF form creation</li>
+                        <li><a href="https://github.com/google/draco" target="_blank">Draco</a> (Apache License 2.0, by Google) — Decoder for Draco-compressed GLB/glTF</li>
+                    </ul>
+                    <p>All icons and the MeshNotes logo were designed by <span style="color: var(--color-gold);">Lara-Sophie Braun</span>.</p>
+                    <p>MeshNotes itself is licensed under the <strong>Apache License, Version 2.0</strong> — free to use, modify, and distribute. See the <a href="https://github.com/NilsSchnorr/MeshNotes/blob/main/LICENSE" target="_blank">LICENSE file</a> for details.</p>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Modal -->
+    <div id="manual-overlay">
+        <div id="manual-modal">
+            <div id="manual-modal-header">
+                <h2>Manual</h2>
+                <button id="manual-modal-close">✕</button>
+            </div>
+            <div id="manual-modal-content">
+                <section>
+                    <h3>Quick Start</h3>
+                    <div style="background: #041D31; padding: 16px; border-radius: 6px;">
+                        <p style="margin-bottom: 12px;"><strong>1. Load a model</strong> — Click <strong>Import ▾</strong> and select <strong>3D Model</strong> to open a 3D model file (.glb, .gltf, .obj, .ply, or .stl format). For OBJ files, you will be prompted to optionally add material (.mtl) and texture files.</p>
+                        <p style="margin-bottom: 12px;"><strong>2. Add annotations</strong> — Select a tool (Point, Line, Polygon, or Surface) and click on the model. Double-click to finish lines/polygons/surfaces.</p>
+                        <p style="margin-bottom: 12px;"><strong>3. Navigate annotations</strong> — Single-click an annotation in the sidebar to focus the camera on it. Double-click to open it for editing.</p>
+                        <p style="margin-bottom: 12px;"><strong>4. Adjust annotations</strong> — When no tool is active, drag any annotation point to reposition it. Use groups to organize and color-code your work.</p>
+                        <p style="margin-bottom: 12px;"><strong>5. Take measurements</strong> — Use the Measure tool to click two points and get the distance. Hold <strong>Ctrl</strong> while clicking to measure paths through multiple points. Press Escape to clear.</p>
+                        <p style="margin-bottom: 0;"><strong>6. Export or share your work</strong> — Click <strong>Export ▾</strong> to save annotations as <strong>JSON-LD</strong> for backup or team sharing, or to generate a <strong>PDF Report</strong>. Click <strong>Share</strong> to upload your model and annotations to meshnotes.org and generate a link that anyone can open directly in MeshNotes (expires after 90 days).</p>
+                    </div>
+                    <p style="margin-top: 12px; font-size: 13px; color: #aaa;">📱 <strong>Tablet users:</strong> MeshNotes works great on iPad with Apple Pencil. Use your stylus to annotate and your fingers to navigate. See the <em>Tablet &amp; Stylus Support</em> section below for details.
+                    </p>
+                </section>
+
+                <section>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Loading a Model</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Import ▾</strong> and select <strong>3D Model</strong> to open a 3D model file. The tool supports <code>.glb</code>, <code>.gltf</code>, <code>.obj</code>, <code>.ply</code>, and <code>.stl</code> formats. After loading, the face count is displayed in the bottom-right corner.</p>
+                            
+                            <p style="margin-top: 10px;"><strong>PLY Files:</strong> When loading a PLY file, you will be asked whether to add a texture image. If your PLY contains UV coordinates, the texture will be mapped onto the model. PLY files with vertex colors are loaded automatically without requiring a separate texture.</p>
+                            
+                            <p style="margin-top: 10px;"><strong>OBJ Files:</strong> When loading an OBJ file, you will be asked whether to add material and texture files. You can select a <code>.mtl</code> file together with texture images (<code>.jpg</code>, <code>.png</code>), or only texture images, or load the geometry without any materials. If only a texture is provided without an MTL file, it will be applied as a diffuse map.</p>
+                            
+                            <p style="margin-top: 10px;"><strong>Model Orientation:</strong> Ensure your model is oriented correctly (typically Y-up or Z-up) before exporting. The viewer's navigation is based on the model's original orientation and cannot be changed after loading. If your model appears upside down or sideways, re-export it with the correct orientation in your 3D software.</p>
+                            <p style="margin-top: 10px;"><strong>Tip:</strong> GLB is recommended for best compatibility as it embeds textures and orientation in a single file. If your model is in another format, you can convert it using <a href="https://www.blender.org/" target="_blank">Blender</a>.</p>
+                            <div class="limitation-note" style="margin-top: 12px;">
+                                <strong>Exporting Vertex Colors from Blender:</strong> To include vertex colors in your GLB export, go to <code>File → Export → glTF 2.0</code>. In the export panel, expand <strong>Mesh</strong>, then <strong>Vertex Colors</strong>, and set <strong>Use Vertex Color</strong> to <strong>Active</strong>. This ensures that vertex color data is included in the GLB file and will be available in the Colors display mode.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Model Preparation &amp; Format Guide</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>MeshNotes works with 3D models in <code>.glb</code>, <code>.gltf</code>, <code>.obj</code>, <code>.ply</code>, and <code>.stl</code> formats. Choosing the right format and preparing your model well will give you the best experience.</p>
+
+                            <p style="margin-top: 10px;"><strong>Recommended format:</strong> <code>GLB</code> (Binary glTF) is the best all-around choice. It packages geometry, textures, and materials into a single file, loads quickly, and does not allow for misleading axial orientation</p>
+
+                            <p style="margin-top: 10px;"><strong>Format comparison:</strong></p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>GLB/GLTF</strong> — Best overall. Single file (GLB) or folder with linked textures (GLTF). Supports textures, materials, and vertex colors.</li>
+                                <li><strong>OBJ</strong> — Widely supported format. Requires separate <code>.mtl</code> and texture files. Often used for models from photogrammetry or SLS software.</li>
+                                <li><strong>PLY</strong> — Common for point clouds and laser scans, standard format for e.g. GigaMesh. Supports vertex colors natively.</li>
+                                <li><strong>STL</strong> — Widely used in 3D scanning and 3D printing workflows. Contains geometry only (no textures or vertex colors). Supports both ASCII and binary STL files, including binary STL with per-face color.</li>
+                            </ul>
+
+                            <p style="margin-top: 10px;"><strong>Face count &amp; performance:</strong> The number of faces (triangles) in your model directly affects performance. After loading, the face count is displayed in the bottom-right corner with a color indicator:</p>
+                            
+                            <p style="margin-top: 10px;"><strong>Orientation:</strong> When loading OBJ, PLY, or STL files, MeshNotes will ask you which axis is "up" in your source software. Most photogrammetry and cultural heritage tools (Metashape, CloudCompare, MeshLab, Blender) use <strong>Z-up</strong>, while some game engines and web viewers use Y-up. Selecting the correct option ensures your model displays upright. GLB/GLTF files handle orientation automatically per the glTF specification. See the <em>Coordinate System</em> section below for more details.</p>
+
+                            <p style="margin-top: 10px;"><strong>Reducing file size (Draco compression):</strong> Large photogrammetry models can produce GLB files of several hundred megabytes. <em>Draco compression</em> significantly reduces geometry size while preserving visual quality — MeshNotes fully supports Draco-compressed GLB files. You can compress your models using browser-based tools such as <a href="https://optimizeglb.com/dashboard" target="_blank">OptimizeGLB</a>, or locally via the command-line tool <a href="https://gltf-transform.dev/" target="_blank">gltf-transform</a> (<code>npx gltf-transform draco input.glb output.glb</code>). The local option avoids uploading your model to a third-party server.</p>
+
+                            <p style="margin-top: 10px;"><strong>Units:</strong> MeshNotes displays distances and scalebar values in whatever unit your model was created with. If your photogrammetry software exports in meters, distances will be in meters. If it exports in millimeters, they will be in millimeters. There is no unit conversion — consistency depends on your source data. Check your 3D software's export settings if distances seem off by a factor of 1000.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Coordinate System</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>MeshNotes displays all models and exports all annotation coordinates with <strong>Z pointing up</strong>. This matches the convention used by most software in cultural heritage, photogrammetry, and geospatial work, including Metashape, CloudCompare, MeshLab, QGIS, and Blender.</p>
+
+                            <p style="margin-top: 10px;"><strong>Why this matters:</strong> When you annotate a model in MeshNotes and export the annotations as JSON, the coordinates in that file use Z-up. If a colleague opens the same model in a different software and overlays your annotations, the points will be in the correct positions — no manual coordinate conversion needed.</p>
+
+                            <p style="margin-top: 10px;"><strong>How it works internally:</strong> The 3D engine that MeshNotes is built on (Three.js) uses Y-up internally, which is common for web-based 3D viewers. MeshNotes handles the translation between these two conventions automatically, so you never need to worry about it. The View Helper in the top-right corner always shows Z (blue) pointing up, Y (green) pointing forward, and X (red) pointing right, reflecting the Z-up convention most users will be used to.</p>
+
+                            <p style="margin-top: 10px;"><strong>On import:</strong> When loading OBJ or PLY files, MeshNotes asks which axis is up in your source software and rotates the model accordingly. GLB/GLTF files always use Y-up by specification, so MeshNotes handles them automatically. When importing annotation files, MeshNotes checks the <code>upAxis</code> field in the JSON. Files marked as Z-up are loaded directly; older files without this field are treated as legacy Y-up data and converted automatically.</p>
+
+                            <p style="margin-top: 10px;"><strong>On export:</strong> All annotation JSON files include an <code>"upAxis": "Z"</code> field near the top of the file. This tells any software reading the file which coordinate convention to expect. The field is deliberately not prefixed with a MeshNotes-specific namespace, so it is easy for other tools to read and interpret.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Texture &amp; Display Controls</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p><strong>Display Mode:</strong> Click the display button to cycle through available modes: <strong>Texture</strong> (shows the model's texture maps), <strong>Colors</strong> (shows vertex colors only, if present), <strong>Mesh</strong> (solid single-color surface), and <strong>Wireframe</strong> (edge-only view). The Colors mode is only available if the model contains vertex color data. The colors used for Mesh and Wireframe modes can be customized in <strong>Settings</strong>.</p>
+                            <p style="margin-top: 10px;"><strong>Brightness slider:</strong> Adjust scene lighting from 0% to 300%. <strong>Opacity slider:</strong> Make the model transparent (10-100%) to see annotations that pass through it.</p>
+                            <p style="margin-top: 10px;"><strong>Annotation Display:</strong> In <strong>Settings</strong>, use the <strong>Point Size</strong> slider (×0.3 to ×50) to adjust the size of annotation markers, and the <strong>Text Size</strong> slider (×0.3 to ×50) to adjust annotation label sizes. The sliders use exponential scaling, so small movements have bigger effect at high values — making it easy to reach extreme sizes for very large or small models. These settings are saved automatically.</p>
+                            <p style="margin-top: 10px;"><strong>Light Source:</strong> By default, the main light follows your camera view, ensuring consistent illumination from any angle. Click the toggle to switch to <strong>Fixed Direction</strong> mode, which reveals two sliders: <strong>Horizontal</strong> (0°-360°) rotates the light around the model, and <strong>Vertical</strong> (-90° to +90°) adjusts the light height from below (-90°) through the horizon (0°) to directly above (+90°). This is ideal for raking light analysis of surface details like tool marks, inscriptions, or weathering patterns. The light is automatically boosted in fixed mode for better shadow visibility.</p>
+                            <p style="margin-top: 10px;"><strong>Background Color:</strong> In <strong>Settings</strong>, choose the viewport background color using the preset buttons (dark blue default, black, dark gray, gray, white) or click the color picker for a custom color. White or light gray backgrounds are ideal for publication-ready screenshots, while dark backgrounds reduce eye strain during extended annotation sessions. Your preference is saved automatically.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Point Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Point</strong>, then click on the model surface to place a point marker. A popup will appear where you can enter a name, description, author, and external links.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Line Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Line</strong> to start drawing a polyline. Single-click to add points along the line, double-click to finish and open the annotation popup. Lines are useful for marking edges, boundaries, cracks, or linear features.</p>
+                            <p style="margin-top: 10px;"><strong>Undo:</strong> Press <code>Ctrl+Z</code> (or <code>Cmd+Z</code> on Mac) to remove the last placed point. This allows you to correct mistakes without starting over.</p>
+                            <p style="margin-top: 10px;"><strong>Surface projection:</strong> By default, line edges are automatically projected onto the model surface — they follow the geometry's contour rather than cutting through it as straight lines. This works best on smaller objects with gently curved surfaces. If the projection deviates too far from the intended path (e.g., on complex geometry with deep recesses), MeshNotes falls back to a straight connection for that segment automatically. You can toggle surface projection on or off per annotation using the <strong>"Project line(s) to surface"</strong> checkbox in the annotation popup.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Polygon Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Polygon</strong> to start drawing a closed shape. Single-click to add vertices, double-click to close the polygon and open the annotation popup. Polygons are useful for marking areas, surfaces, or regions of interest.</p>
+                            <p style="margin-top: 10px;"><strong>Undo:</strong> Press <code>Ctrl+Z</code> (or <code>Cmd+Z</code> on Mac) to remove the last placed vertex. This allows you to correct mistakes without starting over.</p>
+                            <p style="margin-top: 10px;">Like line annotations, polygon edges are projected onto the model surface by default, following the geometry's contour. This can be toggled per annotation in the popup.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Surface Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Surface</strong> to paint directly on the 3D model's mesh faces. Adjust the brush size using the slider (0.1-20% of model size), then click and drag to highlight faces. <strong>Right-click and drag</strong> to rotate the view while painting — this lets you paint a continuous surface annotation from multiple angles (e.g., wrapping around a statue's arm). Hold <strong>Shift</strong> while painting to erase. Double-click to finish and open the annotation popup.</p>
+                            <p style="margin-top: 10px;"><strong>Undo:</strong> Press <code>Ctrl+Z</code> (or <code>Cmd+Z</code> on Mac) to undo the last paint stroke. Each stroke (one mousedown-to-mouseup drag) is treated as one undoable step, including erase strokes. You can undo multiple strokes in succession.</p>
+                            <p style="margin-top: 10px;">Surface annotations are ideal for marking 3D regions like weathered areas, specific architectural features, or body parts on sculptures that can't be easily captured with flat polygons.</p>
+                            <div class="limitation-note">
+                                <strong>Performance Note:</strong> The Surface tool uses BVH (Bounding Volume Hierarchy) acceleration for fast spatial queries, significantly improving painting performance. It works best on smaller models (statues, ceramics, artifacts). Performance depends on face count:
+                                <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                    <li><strong>&lt; 500k faces:</strong> Smooth painting</li>
+                                    <li><strong>500k - 3M faces:</strong> May experience slight lag</li>
+                                    <li><strong>&gt; 3M faces:</strong> Painting may be slow — use a small brush size (0.1–0.2) for stable performance, or consider decimating the model</li>
+                                </ul>
+                                The face count is shown in the bottom-right corner after loading a model.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Box Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Box</strong> to activate the box tool, then click on the model to place a 3D box annotation. A default-sized box appears at the click location. Boxes are useful for marking volumetric regions like rooms, excavation contexts, architectural spaces, or reconstruction hypotheses.</p>
+                            <p style="margin-top: 10px;"><strong>Manipulating boxes:</strong></p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>Move:</strong> Click and drag the box body to reposition it freely in 3D space</li>
+                                <li><strong>Resize:</strong> Drag any corner handle to reshape the box (the opposite corner stays fixed)</li>
+                                <li><strong>Rotate:</strong> Right-click and drag on the box body — horizontal movement spins the box, vertical movement tilts it</li>
+                                <li><strong>Snap:</strong> Hold <code>Shift</code> while rotating to snap to 15° increments</li>
+                            </ul>
+                            <p style="margin-top: 10px;">Unlike other annotations, boxes can float freely in 3D space — they don't need to touch the model surface. This makes them ideal for marking "negative space" like missing architectural elements or hypothetical reconstructions. </p>
+                                <p>The Box annotation tool was inspired by the <a href="https://cuan3d-be1b98.pages.gitlab.rlp.net/" target="_blank">Cuan3D</a> annotation tool developed by Paula Dicke.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Measurement Tool</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Measure</strong> to activate the measurement tool. Click two points on the model to measure the straight-line distance between them. Multiple measurements can be taken and all stay visible with their distance labels.</p>
+                            <p style="margin-top: 10px;"><strong>Multi-point measurement:</strong> Hold <code>Ctrl</code> (or <code>Cmd</code> on Mac) while clicking to measure a path through multiple points — useful for measuring around corners, along curved edges, or following a non-straight route. Keep holding Ctrl and clicking to add more points. The total path distance is shown as you go. Release Ctrl and click once more to finalize, or simply click without Ctrl when you have two or more points. Multi-point measurements display the total distance along with a breakdown of individual segment lengths (e.g., <code>1.234 + 2.345 + 3.456</code>).</p>
+                            <p style="margin-top: 10px;"><strong>Undo:</strong> Press <code>Ctrl+Z</code> (or <code>Cmd+Z</code> on Mac) to remove the last placed measurement point before the measurement is finalized. This works for both simple two-point and multi-point measurements.</p>
+                            <p style="margin-top: 10px;"><strong>Managing measurements:</strong> Click the <strong>×</strong> button next to any measurement to delete just that one. Click on a measurement value to <strong>copy it to clipboard</strong> for pasting into documentation. Press <code>Esc</code> to clear all measurements at once.</p>
+                            <p style="margin-top: 10px;">Distances are displayed in the unit configured in <strong>Settings</strong> (default: "units"). You can set this to mm, cm, m, or a custom label. The actual scale depends on how your 3D model was created or exported — MeshNotes does not convert between units.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Cutting Plane (Profile Extraction)</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>The Cutting Plane tool lets you extract cross-section profiles from your 3D model. It is located inside the <strong>Measure</strong> tool — when you activate Measure, the Cutting Plane panel appears alongside the measurement controls.</p>
+                            <p style="margin-top: 10px;"><strong>Workflow:</strong> First, rotate your camera to look at the model from the direction you want to cut through. Then click <strong>Spawn Plane</strong> — a semi-transparent blue plane appears perpendicular to your current viewpoint, centered on the model. A red preview line shows where the plane intersects the mesh in real time.</p>
+                            <p style="margin-top: 10px;"><strong>Adjusting the plane:</strong></p>
+                            <ul style="margin: 6px 0 0 20px; font-size: 14px;">
+                                <li><strong>Left-drag</strong> on the plane to slide it forward/backward along its normal</li>
+                                <li><strong>Right-drag</strong> on the plane to tilt it freely</li>
+                                <li><strong>Ctrl + Left-drag</strong> (Cmd on Mac) to swing the plane — pivoting the left/right edges forward and backward, useful for aligning with walls or irregular features</li>
+                            </ul>
+                            <p style="margin-top: 10px;"><strong>Extracting the profile:</strong> Once the plane is positioned, click <strong>Extract Profile</strong>. MeshNotes computes the exact geometric intersection between the plane and the mesh triangles, projects it onto the plane's 2D coordinate system, and displays a preview. From the preview you can download the profile as <strong>SVG</strong> (vector, ideal for publication figures) or <strong>PNG</strong> (raster, 2× resolution). Both formats include a scale bar using the unit configured in Settings.</p>
+                            <p style="margin-top: 10px;"><strong>Tips:</strong> You can spawn, adjust, and extract multiple profiles without leaving the Measure tool. Click <strong>Remove Plane</strong> to clear the cutting plane, or press <strong>Esc</strong> to leave the Measure tool entirely (which also removes the plane). The cutting plane is visual only — it does not modify the model or affect annotations.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Groups</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Groups help organize annotations by category, phase, or team member. Click <strong>+ Group</strong> in the sidebar to create a new group with a custom name and color. All annotations within a group share that color. Use the eye icon to show/hide all annotations in a group, and the edit icon to modify the group name, color, or opacity, or to delete the entire group. A default group is created automatically when you first annotate.</p>
+                            <p style="margin-top: 10px;"><strong>Group Opacity:</strong> Each group has an opacity slider (5–100%) that controls the transparency of all annotations in that group. This is useful when overlapping annotations from different groups need to remain distinguishable, or when you want to de-emphasize one group while focusing on another. Opacity settings are saved in the JSON export and restored on import.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Searching Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Use the <strong>search box</strong> at the top of the sidebar to filter annotations by name. As you type, annotations and groups that don't match your search term are hidden from the list. Clear the search field to show all annotations again. This is helpful when working with many annotations and you need to quickly find a specific feature.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Model Information</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>In the <strong>General Information</strong> section at the top of the sidebar, the <strong>Model Information</strong> item stores free-form notes about the entire model. Click the edit button or double-click to open it. Like annotations, it supports multiple entries from different team members with timestamps — useful for documenting the model’s origin, processing history, or general observations. The sidebar shows a preview of the latest entry.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Metadata Report</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Below Model Information, the <strong>Metadata Report</strong> provides a structured form for documenting the technical metadata of your 3D documentation project. Click the edit button or double-click to open it. The form covers seven sections: <strong>General Information</strong> (project title, location, timeline), <strong>Object Context</strong> (object type, material, dating, find spot, inventory number), <strong>Capture Metadata</strong> (documentation method, instrument, camera/scanner settings), <strong>Reference Metadata</strong> (GPS, scalebars, GCPs), <strong>Processing Metadata</strong> (software, algorithms, model details), <strong>Paradata</strong> (method rationale, sources, interpretive decisions, known limitations), and <strong>Legal</strong> (project lead, funding, copyright).</p>
+
+                            <p style="margin-top: 10px;"><strong>Subject kind &amp; controlled vocabularies:</strong> At the top of the form, the <strong>Subject kind</strong> selector records what the documented subject is (movable object, feature, building, site, landscape, or mixed). This sets the CIDOC CRM root class used when the metadata is exported &mdash; it does not change which fields are shown. Several fields (Object Type, Material, Dating/Period, Location, Find Spot) also offer an optional <strong>authority URI</strong> input for linking to a controlled vocabulary such as Getty AAT, PeriodO, or a gazetteer. All of this is optional; the precise mapping is documented in the <a href="https://meshnotes.org/spec/metadata/v1/" target="_blank">MeshNotes Metadata Format specification</a>.</p>
+
+                            <p style="margin-top: 10px;">The template supports all common 3D documentation methods: photogrammetry, structured light scanning, LiDAR, and terrestrial laser scanning (TLS). Fields that don’t apply to your method can simply be left empty. Each section also allows adding <strong>custom fields</strong> for project-specific needs. A non-editable <strong>Data Management</strong> guideline with a recommended folder structure is shown at the bottom for reference.</p>
+
+                            <p style="margin-top: 10px;"><strong>Export &amp; Import:</strong> The metadata popup has three buttons at the top:</p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>JSON (download)</strong> — Downloads the metadata as a JSON file. This is the round-trip format: re-import it into MeshNotes to restore all fields. If the form is empty, you get the blank template to fill out in a text editor.</li>
+                                <li><strong>PDF (download)</strong> — Downloads a fillable PDF form with all fields, including the subject-kind dropdown and any authority URIs. Pre-filled values are included if available. The PDF can be opened in any PDF viewer, filled out by hand or digitally, and used as a standalone documentation form outside of MeshNotes.</li>
+                                <li><strong>JSON (upload)</strong> — Imports a previously exported JSON metadata file, replacing the current metadata after confirmation.</li>
+                            </ul>
+
+                            <p style="margin-top: 10px;"><strong>Integration:</strong> Metadata is automatically included in the JSON-LD annotation export and restored on import. It also appears at the end of PDF reports (only filled fields are shown).</p>
+
+                            <p style="margin-top: 10px;"><strong>Per-model:</strong> Metadata belongs to the model you are documenting. You can fill it in before loading a 3D file, but loading a new model (or refreshing) clears the current metadata &mdash; MeshNotes warns you first and offers to export your work (annotations and metadata together, as JSON-LD) before continuing.</p>
+
+                            <p style="margin-top: 10px;">The sidebar shows how many fields are filled, with a preview of the first filled value.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Multi-Entry Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Each annotation can have multiple entries from different users. When editing an annotation, you'll see all existing entries with their author and timestamp. Click <strong>+ Add Entry</strong> to add your own observation without overwriting previous ones. Each entry has its own description, author name, and links. This is ideal for collaborative documentation where multiple team members contribute observations to the same feature.</p>
+                            <p style="margin-top: 10px;"><strong>Version history:</strong> When you edit an existing entry, the previous version is automatically preserved. You can view the version history by clicking <strong>Edit</strong> on any entry — a collapsible "Previous versions" section appears showing all past edits with their timestamps and authors. This ensures no information is lost during collaborative editing.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Editing Annotations</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Single-click an annotation in the sidebar to focus the camera on it. Double-click to open it for editing. In the edit popup you can: change the annotation name and group, view all entries, edit existing entries (with confirmation to encourage adding new entries), delete individual entries, or delete the entire annotation. Your author name is remembered for convenience.</p>
+                            <p style="margin-top: 10px;"><strong>Version history:</strong> When editing an entry, a "Previous versions" section appears below the edit form. Click the toggle to expand it and see all previous versions of that entry, including who made each change and when. This read-only history helps you track how observations evolved over time and ensures accountability in team documentation.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Moving Annotation Points</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>When no tool is active, you can click and drag any annotation point to reposition it. The cursor changes to a hand when hovering over draggable points. While dragging, the point snaps to the model surface so your annotations stay attached to the geometry.</p>
+                            <p style="margin-top: 10px;"><strong>Lines and polygons:</strong> When you drag a point that belongs to a line or polygon, the connected edges update in real-time. If surface projection is enabled for that annotation, the adjacent edges are re-projected onto the model surface as you move the point — so the lines continue to follow the surface contour at the new position. This allows you to refine annotation boundaries precisely without recreating them.</p>
+                            <p style="margin-top: 10px;"><strong>Note:</strong> Surface annotations (painted faces) cannot be repositioned after creation. To adjust a surface annotation, delete it and paint a new one.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Export &amp; Import</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p><strong>JSON-LD Export:</strong> Click <strong>Export ▾</strong> and choose <strong>JSON-LD (.jsonld)</strong> to download all annotations in <strong>W3C Web Annotation</strong> format. This standard format ensures interoperability with other annotation tools and IIIF-compatible viewers. The export includes all entries, timestamps, metadata, groups, and model information.</p>
+                            <p style="margin-top: 10px;"><strong>Model Files Export:</strong> Click <strong>Export ▾</strong> and choose <strong>Model Files</strong> to download the original model files (including material and texture files for OBJ and PLY models). This is useful when you received a model via a share link and want to save it to your computer.</p>
+                            <p style="margin-top: 10px;"><strong>Import:</strong> Click <strong>Import ▾</strong> and choose <strong>Annotations (.jsonld)</strong> to load annotations from a .json or .jsonld file. MeshNotes supports both the new W3C format and legacy MeshNotes files for backward compatibility. Imported annotations merge with existing ones — groups with the same name are combined.</p>
+                            <p style="margin-top: 10px; font-size: 12px; color: #888;">The W3C Web Annotation Data Model is a standard for interoperable annotations. Learn more at <a href="https://www.w3.org/TR/annotation-model/" target="_blank">w3.org/TR/annotation-model</a></p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Sharing</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Share</strong> in the toolbar to open the sharing dialog. MeshNotes offers two sharing modes:</p>
+
+                            <p style="margin-top: 10px;"><strong>Quick Share (90 days):</strong> Uploads your model and annotations to meshnotes.org and generates a link. Anyone with the link can open the model and annotations directly in MeshNotes — no file download or manual import needed. Quick Share links expire after 90 days. Click <strong>Generate Link</strong> to upload. Maximum file size: 100 MB.</p>
+
+                            <p style="margin-top: 10px;"><strong>Tip:</strong> Large GLB models can be reduced significantly using <em>Draco compression</em> before sharing. See the <em>Model Preparation &amp; Format Guide</em> section for details and tools.</p>
+
+                            <p style="margin-top: 10px;"><strong>Permanent (own hosting / DOI):</strong> For long-term, citable sharing, upload your model and annotation files to a CORS-friendly repository that supports direct file access from the browser. Enter the file URLs in the dialog, select the model format (important when the URL does not contain a file extension), and MeshNotes generates a permanent link. These links do not expire and do not use meshnotes.org storage — the files are loaded directly from your repository. If your repository mints DOIs, the link is citable in publications.</p>
+
+                            <p style="margin-top: 10px;"><strong>Previously generated links:</strong> The Share dialog keeps a history of all links you have generated, showing the model name, creation date, and time remaining until expiry. You can copy any previous link or remove entries from the list. This history is stored in your browser’s local storage.</p>
+
+                            <p style="margin-top: 10px;"><strong>Recipient workflow:</strong> When someone opens a share link, the model and annotations load automatically in MeshNotes. The recipient can view, edit, and add their own annotations. To save the work, they can export the annotations as JSON-LD, download the model files via <strong>Export ▾ → Model Files</strong>, or re-share with a new link.</p>
+
+                            <div class="limitation-note" style="margin-top: 12px;">
+                                <strong>⚠️ Data privacy note:</strong> When using Quick Share, your model file and annotations are uploaded to meshnotes.org (hosted on Cloudflare). Your data is no longer fully offline after sharing. If data confidentiality is important, use the offline file exchange workflow instead (see <em>Collaborative Workflow</em> below).
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Collaborative Workflow &amp; Merging</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>MeshNotes is designed for teams working on the same 3D model. There are two ways to collaborate:</p>
+
+                            <p style="margin-top: 10px;"><strong>Online collaboration (Quick Share):</strong> Use the <strong>Share</strong> button to upload your annotated model and send the link to collaborators. They open the link, see your model and annotations, add their own work, and re-share with a new link. Each share creates a new snapshot — there is no real-time editing, but the workflow is fast and requires no file management. See the <em>Sharing</em> section above for details.</p>
+
+                            <p style="margin-top: 10px;"><strong>Offline collaboration (file exchange):</strong> For fully offline workflows or when data confidentiality is important, use JSON-LD export/import. Multiple people can annotate independently and then merge their work — no server or shared account required.</p>
+
+                            <p style="margin-top: 10px;"><strong>How it works:</strong> Every annotation and every entry within an annotation is assigned a unique ID (UUID) when created. When you import a JSON file, MeshNotes compares these IDs to determine what is new and what already exists:</p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>New annotations</strong> (unknown UUID) are added alongside your existing ones.</li>
+                                <li><strong>Existing annotations</strong> (matching UUID) are updated — any new entries from collaborators are merged in, and entries that were edited are updated if the imported version has a newer timestamp.</li>
+                                <li><strong>Groups</strong> with the same name are combined. New groups from the imported file are created automatically.</li>
+                                <li><strong>Model Information</strong> entries are merged in the same way as annotation entries.</li>
+                            </ul>
+
+                            <p style="margin-top: 12px;"><strong>Example team workflow:</strong></p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>1.</strong> Alice loads the model, creates annotations, and exports a JSON file.</li>
+                                <li><strong>2.</strong> Bob loads the same model, imports Alice's JSON, and adds his own annotations and entries.</li>
+                                <li><strong>3.</strong> Bob exports his JSON and sends it back to Alice.</li>
+                                <li><strong>4.</strong> Alice imports Bob's file — she gets Bob's new annotations and entries merged into her existing work. Her own annotations remain untouched, and Bob's additions appear alongside them.</li>
+                            </ul>
+                            <p style="margin-top: 8px;">This process can be repeated as many times as needed. Each round of import merges only what is new or updated, so you never lose work and annotations are never duplicated.</p>
+
+                            <div class="limitation-note" style="margin-top: 12px;">
+                                <strong>Good to know:</strong> The merge uses timestamps to resolve conflicts — if two people edit the same entry, the most recent edit wins. To avoid overwriting each other's observations, it's best practice to <strong>add new entries</strong> rather than editing existing ones from other team members.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>About the W3C Web Annotation Format</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>MeshNotes exports annotations following the <a href="https://www.w3.org/TR/annotation-model/" target="_blank">W3C Web Annotation Data Model</a>, an internationally recognized standard for representing annotations on digital resources. This was a deliberate choice to ensure long-term interoperability and academic credibility.</p>
+                            <p style="margin-top: 10px;"><strong>What gets stored:</strong> Each annotation is a self-contained JSON-LD object containing its geometry (as a typed geometry selector whose coordinates are encoded as 3D <a href="https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry" target="_blank">WKT</a>), all entries with author, description, links, and timestamps, as well as the group assignment and annotation type. The exported file is a standard <code>AnnotationCollection</code> that also includes group definitions, model information, and the metadata report.</p>
+                            <p style="margin-top: 10px;"><strong>Why it matters:</strong> Using a W3C standard means your annotation data is not locked into MeshNotes. The JSON-LD files are human-readable, can be parsed by any programming language, and are compatible with the broader ecosystem of IIIF-based annotation tools and digital humanities infrastructure. This makes MeshNotes annotations suitable for academic publication, archival, and integration into larger research data management workflows.</p>
+                            <p style="margin-top: 10px;"><strong>Formal specifications:</strong> The exact formats MeshNotes writes are documented in three versioned, citable specifications: the <a href="https://meshnotes.org/spec/annotation/v1/" target="_blank">Annotation format</a> (the AnnotationCollection structure), the <a href="https://meshnotes.org/spec/selector/v1/" target="_blank">Selector format</a> (how each geometry type is encoded), and the <a href="https://meshnotes.org/spec/metadata/v1/" target="_blank">Metadata format</a> (the structured metadata block and its CIDOC CRM crosswalk). These let other software read MeshNotes files reliably.</p>
+                            <p style="margin-top: 10px; font-size: 12px; color: #888;">The exported <code>.jsonld</code> files can be opened in any text editor to inspect their contents. Each annotation's geometry is stored as a WKT string in the selector's <code>meshnotes:wkt</code> field.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>PDF Report</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Export ▾</strong> and choose <strong>PDF Report</strong> to generate a comprehensive documentation report of your annotated model. The report is designed for academic documentation, publication appendices, and archival. Page size (A4, Letter, A3), orientation, screenshot quality (DPI), camera framing (distance and angle), report title, institution, project name, and accent color can all be customized in <strong>Settings</strong>.</p>
+
+                            <p style="margin-top: 10px;"><strong>Report structure:</strong></p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>Title page</strong> — An overview screenshot of the model with all visible annotations, the model filename, a summary of annotation and group counts, and all Model Information entries.</li>
+                                <li><strong>Axis views</strong> — Six orthogonal views (Top, Bottom, Front, Back, Left, Right) arranged in an unfolded cube layout, giving a complete overview of the model from all standard directions. If you are in orthographic mode, each view includes a scalebar. This page uses the same renderer as the standalone Six-View Plate export, so the two always agree.</li>
+                                <li><strong>Table of contents</strong> — A numbered list of all included annotations for quick reference.</li>
+                                <li><strong>Annotation pages</strong> — One page per annotation with an auto-captured screenshot (the camera automatically focuses on each annotation), the annotation name, type, and group, plus all entry details including author, date, description, and links. If the camera ends up too close to (or inside) your model, increase the <strong>Camera Distance</strong> in Settings; for flatter viewing angles, lower the <strong>Camera Angle</strong>.</li>
+                            </ul>
+
+                            <p style="margin-top: 10px;"><strong>Controlling report content:</strong> Only <strong>visible</strong> annotations are included in the PDF. Use group visibility (the eye icon) to hide annotations you don't want in the report. For example, you could hide preliminary annotations and only include finalized ones, or generate separate reports per group by toggling visibility before each export.</p>
+
+                            <div class="limitation-note" style="margin-top: 12px;">
+                                <strong>Note:</strong> During PDF generation, the camera and lighting are temporarily adjusted for consistent results. All screenshots in the report use camera-linked lighting regardless of your current light source setting, ensuring uniform illumination across all views. Your original camera position and lighting settings are restored after the report is generated.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Screenshots &amp; Scalebar</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Screenshot ▾</strong> and choose <strong>Screenshot</strong> to save the current view as a PNG image. The screenshot includes all visible annotations, name labels, and measurement lines exactly as shown on screen — useful for documentation, reports, and publications.</p>
+                            <p style="margin-top: 10px;"><strong>Screenshot Quality:</strong> In <strong>Settings</strong>, you can choose the screenshot resolution: <strong>Standard (1×)</strong> captures at screen resolution, <strong>High (2×)</strong> renders at double resolution for sharper detail when zoomed in, and <strong>Ultra (4×)</strong> renders at four times the resolution for maximum clarity. Higher quality may take longer on large models.</p>
+                            <p style="margin-top: 10px;"><strong>Scalebar:</strong> In <strong>Orthographic</strong> camera mode, screenshots automatically include a scalebar in the bottom-left corner. The scalebar is drawn as a thin rule with a tick at each end and the length below it, matching the scale bars on profile and plate exports. Values are rounded to clean numbers (e.g., 1, 2, 5, 10, 20, 50...) for readability, and the unit label matches the measurement unit configured in Settings. The bar is drawn in black or white, whichever contrasts with your background colour.</p>
+                            <p style="margin-top: 10px;">If you take a screenshot while in <strong>Perspective</strong> mode, MeshNotes will ask whether you want to switch to Orthographic view first. A scalebar can only be accurate in orthographic mode, where scale is uniform across the entire image — in perspective view, objects further from the camera appear smaller, making a single scalebar misleading.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Six-View Plate</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click <strong>Screenshot ▾</strong> and choose <strong>Six-View Plate…</strong> to render the model from all six axis directions and arrange them in the unfolded-cube layout used for object plates in archaeological publications:</p>
+                            <p style="margin-top: 10px; font-family: monospace; font-size: 12px; line-height: 1.6;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ Top ]<br>[ Back ] [ Left ] [ Front ] [ Right ]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ Bottom ]</p>
+                            <p style="margin-top: 10px;"><strong>Framing is fixed to the object.</strong> Each view is framed to the face it shows, and all six are rendered at one shared scale — which is what makes the single scale bar below the block valid. Framing comes from the model's bounding box rather than the viewport, so the same model always produces the same plate, and two objects exported the same way are directly comparable. Only geometry that is actually visible counts towards the framing, so hidden parts inside a model file do not push the object into a corner.</p>
+                            <p style="margin-top: 10px;"><strong>What appears is what you see.</strong> Annotations, labels and measurements are included if they are visible in the viewport. To produce a clean object-only plate, toggle them off before exporting.</p>
+                            <p style="margin-top: 10px;"><strong>PNG or PDF.</strong> After choosing Six-View Plate you are asked for an output format. <strong>PNG</strong> has a transparent background, so the plate can be placed directly onto a page or figure without a background block; the scale bar is drawn in black, on the assumption that it will sit on white paper. <strong>PDF</strong> places the same transparent images on a white page, fitted to the page size and orientation from the PDF Export settings, with the scale bar drawn as vector lines.</p>
+                            <p style="margin-top: 10px;">As with screenshots, a plate exported from <strong>Perspective</strong> mode will be offered a switch to Orthographic first; without it the views are rendered but no scale bar is drawn.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Navigation Controls</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p><strong>Left-click + drag:</strong> Rotate the view around the model. <strong>Right-click + drag:</strong> Pan the view. <strong>Scroll wheel:</strong> Zoom in/out. <strong>Escape:</strong> Cancel current drawing action, deselect tool, or clear all measurements.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Tablet &amp; Stylus Support</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>MeshNotes is optimized for tablets with stylus input (e.g., iPad with Apple Pencil). On touch devices, the interface automatically adapts with a collapsible sidebar, touch-friendly controls, and separate handling of stylus vs. finger input.</p>
+
+                            <p style="margin-top: 10px;"><strong>Input separation:</strong> MeshNotes distinguishes between stylus and finger input:</p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>Stylus (pen):</strong> Used for annotation — placing points, drawing lines/polygons, painting surfaces, placing and adjusting boxes</li>
+                                <li><strong>Finger:</strong> Used for navigation — rotate the view (1 finger), zoom (pinch), pan (2-finger drag)</li>
+                            </ul>
+                            <p style="margin-top: 8px;">This separation lets you annotate and navigate without switching modes — simply pick up the stylus to annotate, or use your fingers to move around the model.</p>
+
+                            <p style="margin-top: 10px;"><strong>Stylus gestures:</strong></p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li><strong>Tap:</strong> Place a point, add a line vertex, or start a box</li>
+                                <li><strong>Double-tap:</strong> Finish a line/polygon, confirm a box, or complete a measurement</li>
+                                <li><strong>Drag:</strong> Paint surfaces, move/resize boxes</li>
+                            </ul>
+
+                            <p style="margin-top: 10px;"><strong>Apple Pencil barrel tap:</strong> If you have an Apple Pencil (2nd generation) and have configured it in iPad Settings → Apple Pencil → "Switch between current tool and eraser", you can use the barrel double-tap as an alternative to double-tapping on screen. This is especially convenient for finishing lines, polygons, and confirming box placements without lifting your hand.</p>
+
+                            <p style="margin-top: 10px;"><strong>Box rotation:</strong> To rotate a box on tablet, use a two-finger twist gesture while the box is selected. This replaces the right-click rotation used on desktop.</p>
+
+                            <p style="margin-top: 10px;"><strong>Sidebar:</strong> On tablets, the sidebar starts collapsed to maximize viewport space. Tap the arrow button on the right edge to expand/collapse it. When collapsed, the viewport automatically expands to use the full screen width.</p>
+
+                            <div class="limitation-note" style="margin-top: 12px;">
+                                <strong>Tip:</strong> The tool-help panel in the top-left corner of the viewport shows touch-specific instructions when you're on a tablet. It updates based on the currently selected tool and shows the appropriate stylus and finger gestures.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Offline Use (Add to Home Screen)</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>MeshNotes can be installed as an app and used completely offline — ideal for fieldwork on a tablet with no reliable connection. Everything runs locally on your device; only the optional <em>Share</em> upload needs the internet.</p>
+
+                            <p style="margin-top: 10px;"><strong>Install it (once, while online):</strong></p>
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                <li>Open <a href="https://meshnotes.org" target="_blank">meshnotes.org</a> and let the page finish loading.</li>
+                                <li><strong>iPad / iPhone (Safari):</strong> tap the <strong>Share</strong> button, then <strong>Add to Home Screen</strong>.</li>
+                                <li><strong>Android / desktop (Chrome, Edge):</strong> choose <strong>Install app</strong> / <strong>Add to Home Screen</strong> from the browser menu (or the install icon in the address bar).</li>
+                            </ul>
+                            <p style="margin-top: 8px;">A MeshNotes icon is added to your home screen. Launched from there, it opens full-screen like a native app.</p>
+
+                            <p style="margin-top: 10px;"><strong>Work offline:</strong> With no connection, open MeshNotes from the home-screen icon and load your 3D model from local files as usual. All annotation tools, the PDF and JSON-LD exports, and this manual work offline. The 3D model itself is not stored by the app, so reopen your model file at the start of each session.</p>
+
+                            <p style="margin-top: 10px;"><strong>Your work is auto-saved:</strong> While you annotate, MeshNotes keeps a local backup in the browser. If the app is closed — or the tablet drops it from memory in the background — reopen the <em>same</em> model and MeshNotes will offer to restore your last session. As a habit, still <strong>export to JSON-LD (Export ▾ → JSON-LD) before closing</strong> so you always have a file copy on your device.</p>
+
+                            <p style="margin-top: 10px;"><strong>Staying up to date:</strong> When you are back online, MeshNotes checks for a newer version and shows a small <em>“new version available”</em> banner; tap <strong>Reload</strong> to update. It never reloads on its own while you are working.</p>
+
+                            <div class="limitation-note" style="margin-top: 12px;">
+                                <strong>Tip:</strong> The very first visit must be online so the app can cache itself. After that, it launches and runs without a connection.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Camera View</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click the <strong>Perspective/Orthographic</strong> button in the top-right corner of the viewport to toggle between camera modes. <strong>Perspective</strong> view shows depth with natural foreshortening. <strong>Orthographic</strong> view removes perspective distortion, making parallel lines appear parallel — useful for accurate measurements, technical drawings, and architectural documentation.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Flip View</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click the <strong>Flip</strong> button in the bottom-right panel to rotate the model 180° upside down. This is useful for objects like coins where the front and back sides are stamped at different angles, making the reverse side difficult to reach with normal orbit controls.</p>
+                            <p style="margin-top: 10px;"><strong>Purely visual:</strong> The flip is a temporary display effect only. It does not change the model's actual orientation, and it does not affect annotation coordinates. All annotations — whether created before, during, or after flipping — are stored in the same coordinate space as if the model were in its original orientation. You can freely toggle the flip on and off without any impact on your data.</p>
+                            <p style="margin-top: 10px;"><strong>Export safety:</strong> JSON exports, PDF reports, and screenshots taken while the model is flipped will contain the same annotation coordinates as exports made without flipping. The flip state is never saved or exported — it is purely a viewing convenience that resets when you load a new model.</p>
+                            <p style="margin-top: 10px;"><strong>Annotations while flipped:</strong> You can create, edit, drag, and delete annotations normally while the model is flipped. New annotations placed on the visible (flipped) surface are automatically stored with the correct non-flipped coordinates. Existing annotations remain correctly positioned when you toggle the flip on or off.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>View Helper</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>In the top-right corner of the viewport you'll find the <strong>View Helper</strong>, an interactive widget provided by the <a href="https://threejs.org/docs/#examples/en/helpers/ViewHelper" target="_blank">Three.js library</a>. It displays three colored axis lines — <strong style="color: #ff4444;">X (red)</strong>, <strong style="color: #44bb44;">Y (green)</strong>, and <strong style="color: #4488ff;">Z (blue)</strong> — radiating from a central point, with labeled circles at each positive axis end and smaller circles at each negative end. As you rotate the model, the View Helper rotates along with it, always showing your current camera orientation at a glance.</p>
+                            <p style="margin-top: 10px;"><strong>Click any axis circle</strong> to smoothly animate the camera to that standard view direction (e.g., click the Z circle for a top-down view, click the Y circle for a front view). This is particularly useful for consistent documentation — for example, always capturing the same angle of an artifact for comparison, or quickly switching between front and side views while annotating.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Tips</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Use the opacity slider to see annotations on the back side of the model. Group annotations by excavation phase, feature type, or team member for better organization. Export frequently to back up your work. The tool runs entirely in your browser — your data stays on your computer unless you explicitly use the Share feature to generate a link.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Data Privacy &amp; Offline Use</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>MeshNotes runs entirely in your web browser. Your 3D models, annotations, and all other data remain on your computer by default. The tool does not use cookies, analytics, or tracking, and all program libraries (Three.js, jsPDF, pdf-lib, and others) are served from MeshNotes itself rather than third-party CDNs. The only network request during normal use is loading the application from its host; see the <em>Legal / Data</em> section for details, or run MeshNotes locally (see below) to keep everything fully offline.</p>
+                            <p style="margin-top: 10px;"><strong>Sharing (optional):</strong> The <strong>Quick Share</strong> feature uploads your model and annotations to meshnotes.org (hosted on Cloudflare) to generate a temporary shareable link. Files are automatically deleted after 90 days. <strong>No data leaves your computer unless you explicitly click "Generate Link" in the Share dialog.</strong> The <strong>Permanent</strong> sharing option does not upload anything to meshnotes.org — it generates a link that points to files you have hosted yourself on a repository of your choice. If data confidentiality is critical, use the offline JSON-LD export/import workflow instead.</p>
+                            <p style="margin-top: 10px;">When hosted on GitHub Pages, the application files are downloaded once, after which all processing happens locally. For offline use, you can clone or download the <a href="https://github.com/NilsSchnorr/MeshNotes" target="_blank">GitHub repository</a> and run a local web server (e.g., <code>python -m http.server</code> or VS Code Live Server). Note that opening <code>index.html</code> directly via <code>file://</code> won't work due to browser security restrictions on ES modules.</p>
+                            <p style="margin-top: 10px;"><strong>Offline use on a tablet (Add to Home Screen):</strong> MeshNotes can also be installed for offline use directly from the website — no repository download needed. Open <a href="https://meshnotes.org" target="_blank">meshnotes.org</a> once while online, then use your browser's <strong>Add to Home Screen</strong> option (on iPad Safari: Share → Add to Home Screen). Launched from the home screen it runs full-screen and works without a connection; only the optional <em>Share</em> upload needs the internet. The 3D model itself is not stored by the app, so reopen your local model file at the start of each session.</p>
+                            <p style="margin-top: 10px;"><strong>Protecting your work offline:</strong> While you annotate, MeshNotes automatically keeps a local backup of your annotations in your browser. If the app closes or reloads — which tablets sometimes do on their own when memory is low — reopen the <em>same</em> model file and MeshNotes will offer to restore your last session. As an added safeguard it is still good practice to <strong>export your annotations (Export ▾ → JSON-LD) before closing the app</strong>, especially when working offline, so a copy is always saved to your device.</p>
+                            <p style="margin-top: 10px;">Exported JSON and PDF files are generated locally in your browser and saved directly to your downloads folder. Sharing annotation data with collaborators is always an explicit action on your part — you decide when and with whom to share your exported files. This makes MeshNotes suitable for documenting sensitive or unpublished archaeological sites where data confidentiality is important.</p>
+                        </div>
+                    </div>
+
+                    <div class="manual-item">
+                        <div class="manual-item-header">
+                            <span>Settings</span>
+                            <span class="toggle-icon">▶</span>
+                        </div>
+                        <div class="manual-item-content">
+                            <p>Click the <strong>Settings</strong> button in the toolbar to open the settings panel. All settings are saved automatically in your browser and persist between sessions.</p>
+
+                            <p style="margin-top: 10px;"><strong>User:</strong> Set a <strong>Default Author Name</strong> that is pre-filled whenever you create a new annotation entry, saving you from typing it each time.</p>
+
+                            <p style="margin-top: 10px;"><strong>Measurements:</strong> Choose a <strong>Display Unit</strong> (units, mm, cm, m, or custom) for measurement labels and scalebars. You can also customize the <strong>Line &amp; Label Color</strong> and <strong>Point Color</strong> of measurements to stand out against your model.</p>
+
+                            <p style="margin-top: 10px;"><strong>Annotation Display:</strong> Adjust <strong>Point Size</strong> and <strong>Text Size</strong> multipliers to scale annotation markers and labels for your model's size. The sliders use exponential scaling for easy fine-tuning at both small and large values.</p>
+
+                            <p style="margin-top: 10px;"><strong>Screenshot:</strong> Choose the <strong>Screenshot Quality</strong> — Standard (1×) captures at screen resolution, High (2×) at double, and Ultra (4×) at four times resolution. Higher quality produces sharper images but may be slower on large models.</p>
+                            
+                            <p style="margin-top: 10px;"><strong>Six-View Plate:</strong> <strong>Cell Shape</strong> selects between a tightly fitted net and uniform cells. <strong>PNG Width</strong> sets the total width of the exported plate, and <strong>PDF Resolution</strong> the render resolution of the PDF plate (independent of the PDF Report DPI).</p>
+
+                            <p style="margin-top: 10px;"><strong>Model Display:</strong> Customize the <strong>Mesh Color</strong> and <strong>Wireframe Color</strong> used in the Mesh and Wireframe display modes.</p>
+
+                            <p style="margin-top: 10px;"><strong>PDF Export:</strong> Configure your PDF reports with a custom <strong>Report Title</strong>, <strong>Institution</strong>, and <strong>Project Name</strong> that appear on the title page. Choose an <strong>Accent Color</strong> for headings and decorative elements, a <strong>Page Size</strong> (A4, Letter, or A3), <strong>Orientation</strong> (portrait or landscape), and <strong>Screenshot Quality</strong> (72, 150, or 300 DPI). The <strong>Camera Distance</strong> multiplier (×0.5 to ×5.0) controls how far the camera is placed from each annotation — keep it low for large objects like buildings, and increase it for small objects like coins or sherds to prevent the camera from clipping through the model. The <strong>Camera Angle</strong> (15° to 80°) sets the elevation above the horizontal plane — steep angles give a top-down view, shallow angles show the object more from the side.</p>
+
+                            <p style="margin-top: 10px;"><strong>Background Color:</strong> Choose the viewport background from preset colors (dark blue, black, dark gray, gray, white) or pick a custom color. White or light backgrounds are ideal for publication screenshots.</p>
+
+                            <p style="margin-top: 10px;"><strong>Reset:</strong> Click <strong>Reset All Settings to Default</strong> at the bottom to restore all preferences to their original values.</p>
+                        </div>
+                    </div>
+
+                    <button class="btn-download-manual" id="btn-download-manual" data-icon="manualDownload">Download Manual as PDF</button>
+
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-overlay">
+        <div id="settings-modal">
+            <div id="settings-modal-header">
+                <h2 data-icon="settings">Settings</h2>
+                <button id="settings-modal-close">✕</button>
+            </div>
+            <div id="settings-modal-content">
+                <section>
+                    <h3>User</h3>
+                    <div class="settings-row">
+                        <label for="settings-default-author">Default Author Name</label>
+                        <input type="text" id="settings-default-author" placeholder="Your name (used for new annotations)">
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-default-author-orcid">ORCID iD (optional)</label>
+                        <input type="text" id="settings-default-author-orcid" placeholder="0000-0000-0000-0000">
+                    </div>
+                    <p class="settings-hint">Attached to annotation entries you author under the Default Author Name above, identifying you in the exported data. Accepts a 16-digit ORCID iD or a full https://orcid.org/… URL.</p>
+                    <div class="settings-row">
+                        <label for="settings-default-language">Annotation Language</label>
+                        <select id="settings-default-language">
+                            <option value="">Browser default</option>
+                            <option value="de">Deutsch (de)</option>
+                            <option value="en">English (en)</option>
+                            <option value="fr">Français (fr)</option>
+                            <option value="it">Italiano (it)</option>
+                            <option value="es">Español (es)</option>
+                            <option value="pt">Português (pt)</option>
+                            <option value="nl">Nederlands (nl)</option>
+                            <option value="pl">Polski (pl)</option>
+                            <option value="el">Ελληνικά (el)</option>
+                            <option value="tr">Türkçe (tr)</option>
+                            <option value="ar">العربية (ar)</option>
+                            <option value="ru">Русский (ru)</option>
+                            <option value="la">Latina (la)</option>
+                        </select>
+                    </div>
+                    <p class="settings-hint">Language of the annotation texts you write, stored per entry and kept in the exported data. Entries keep the language they were written in — commenting on someone else's annotation never changes theirs. “Browser default” uses your browser's language.</p>
+                </section>
+                
+                <section>
+                    <h3>Measurements</h3>
+                    <div class="settings-row">
+                        <label for="settings-measurement-unit">Display unit</label>
+                        <div class="measurement-unit-row">
+                            <select id="settings-measurement-unit">
+                                <option value="units">units (no specific unit)</option>
+                                <option value="mm">mm (millimeters)</option>
+                                <option value="cm">cm (centimeters)</option>
+                                <option value="m">m (meters)</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                            <input type="text" id="settings-measurement-unit-custom" placeholder="e.g., ft, in" style="display: none;">
+                        </div>
+                    </div>
+                    <div class="settings-row color-row">
+                        <label>Line & Label Color</label>
+                        <input type="color" id="settings-measurement-line-color" value="#AA8101" title="Measurement line color">
+                    </div>
+                    <div class="settings-row color-row">
+                        <label>Point Color</label>
+                        <input type="color" id="settings-measurement-point-color" value="#FFFFFF" title="Measurement point color">
+                    </div>
+                </section>
+                
+                <section>
+                    <h3>Annotation Display</h3>
+                    <div class="settings-row">
+                        <label>
+                            <span>Point Size</span>
+                            <span id="point-size-value">×1.0</span>
+                        </label>
+                        <input type="range" id="point-size-slider" min="25" max="600" value="100">
+                    </div>
+                    <div class="settings-row">
+                        <label>
+                            <span>Text Size</span>
+                            <span id="text-size-value">×1.0</span>
+                        </label>
+                        <input type="range" id="text-size-slider" min="25" max="600" value="100">
+                    </div>
+                </section>
+                
+                <section>
+                    <h3>Screenshot</h3>
+                    <div class="settings-row">
+                        <label for="settings-screenshot-quality">Screenshot Quality</label>
+                        <select id="settings-screenshot-quality">
+                            <option value="1">Standard (1×)</option>
+                            <option value="2" selected>High (2×)</option>
+                            <option value="4">Ultra (4×)</option>
+                        </select>
+                    </div>
+                    <p class="settings-hint">Higher quality renders a sharper image. Ultra may be slow on large models.</p>
+                </section>
+                
+                <section>
+                    <h3>Six-View Plate</h3>
+                    <div class="settings-row">
+                        <label for="settings-plate-cell-shape">Cell Shape</label>
+                        <select id="settings-plate-cell-shape">
+                            <option value="net" selected>Fitted (unfolded net)</option>
+                            <option value="uniform">Uniform cells</option>
+                        </select>
+                    </div>
+                    <p class="settings-hint">Fitted sizes every cell to the face it shows, so the plate packs tightly. Uniform gives all six views the same cell, which looks more regular but leaves margin around the narrower views.</p>
+                    <div class="settings-row">
+                        <label for="settings-plate-png-width">PNG Width</label>
+                        <select id="settings-plate-png-width">
+                            <option value="2000">2000 px</option>
+                            <option value="4000" selected>4000 px</option>
+                            <option value="8000">8000 px</option>
+                            <option value="12000">12000 px</option>
+                        </select>
+                    </div>
+                    <p class="settings-hint">Total width of the whole plate. Very large plates may be reduced to stay within the browser's canvas limit; the export reports the size it actually produced.</p>
+                    <div class="settings-row">
+                        <label for="settings-plate-pdf-dpi">PDF Resolution</label>
+                        <select id="settings-plate-pdf-dpi">
+                            <option value="150">150 DPI</option>
+                            <option value="300" selected>300 DPI</option>
+                            <option value="600">600 DPI</option>
+                        </select>
+                    </div>
+                    <p class="settings-hint">Render resolution for the PDF plate, independent of the PDF Report DPI setting. 300 DPI suits most print work; 600 DPI is worth it for small objects reproduced large.</p>
+                </section>
+                
+                <section>
+                    <h3>Model Display</h3>
+                    <div class="settings-row color-row">
+                        <label>Mesh Color</label>
+                        <input type="color" id="settings-mesh-color" value="#888888" title="Color used in Mesh display mode">
+                    </div>
+                    <div class="settings-row color-row">
+                        <label>Wireframe Color</label>
+                        <input type="color" id="settings-wireframe-color" value="#AA8101" title="Color used in Wireframe display mode">
+                    </div>
+                </section>
+                
+                <section>
+                    <h3>PDF Export</h3>
+                    <div class="settings-row">
+                        <label for="settings-pdf-title">Report Title</label>
+                        <input type="text" id="settings-pdf-title" placeholder="Leave empty to use model filename">
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-pdf-institution">Institution / Organization</label>
+                        <input type="text" id="settings-pdf-institution" placeholder="e.g., University of...">
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-pdf-project">Project Name</label>
+                        <input type="text" id="settings-pdf-project" placeholder="Optional project name">
+                    </div>
+                    <div class="settings-row color-row">
+                        <label>Accent Color</label>
+                        <input type="color" id="settings-pdf-accent-color" value="#AA8101" title="PDF accent color">
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-pdf-page-size">Page Size</label>
+                        <select id="settings-pdf-page-size">
+                            <option value="a4">A4 (210 × 297 mm)</option>
+                            <option value="letter">Letter (8.5 × 11 in)</option>
+                            <option value="a3">A3 (297 × 420 mm)</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-pdf-orientation">Orientation</label>
+                        <select id="settings-pdf-orientation">
+                            <option value="portrait">Portrait</option>
+                            <option value="landscape">Landscape</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-pdf-dpi">Screenshot Quality</label>
+                        <select id="settings-pdf-dpi">
+                            <option value="72">72 DPI (Screen / Fast)</option>
+                            <option value="150" selected>150 DPI (Standard Print)</option>
+                            <option value="300">300 DPI (High Quality Print)</option>
+                        </select>
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-pdf-camera-distance">Camera Distance <span id="settings-pdf-camera-distance-value">×1.0</span></label>
+                        <input type="range" id="settings-pdf-camera-distance" min="0.5" max="5" step="0.1" value="1.0">
+                        <p class="settings-hint">How far the camera is placed from each annotation. Lower values suit large objects (buildings, walls); raise this for small objects (coins, sherds) to prevent the camera from clipping through the model.</p>
+                    </div>
+                    <div class="settings-row">
+                        <label for="settings-pdf-camera-angle">Camera Angle <span id="settings-pdf-camera-angle-value">60°</span></label>
+                        <input type="range" id="settings-pdf-camera-angle" min="15" max="80" step="5" value="60">
+                        <p class="settings-hint">Elevation angle above the horizontal. Steep angles (70–80°) give a top-down view; shallow angles (15–30°) show the object more from the side. The default (60°) works well for most cases.</p>
+                    </div>
+                </section>
+                
+                <section>
+                    <h3>Background Color</h3>
+                    <div class="settings-row background-row">
+                        <div class="background-presets">
+                            <button class="bg-preset active" data-color="#041D31" title="Default (Dark Blue)">●</button>
+                            <button class="bg-preset" data-color="#000000" title="Black">●</button>
+                            <button class="bg-preset" data-color="#1a1a1a" title="Dark Gray">●</button>
+                            <button class="bg-preset" data-color="#808080" title="Gray">●</button>
+                            <button class="bg-preset" data-color="#ffffff" title="White">●</button>
+                        </div>
+                        <input type="color" id="background-color-picker" value="#041D31" title="Custom Color">
+                    </div>
+                </section>
+                
+                <section class="settings-reset-section">
+                    <button id="settings-reset-all" class="btn-reset">Reset All Settings to Default</button>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legal Modal -->
+    <div id="legal-overlay">
+        <div id="legal-modal">
+            <div id="legal-modal-header">
+                <h2>Legal Information and Data Policy / Impressum und Datenschutz</h2>
+                <button id="legal-modal-close">✕</button>
+            </div>
+            <div id="legal-modal-content">
+                <section>
+                    <div style="background: #041D31; padding: 16px; border-radius: 6px; margin-bottom: 24px;">
+                        <p style="margin-bottom: 8px;"><strong>Open Source Repository</strong></p>
+                        <p style="margin-bottom: 0;">Want to use the tool without accessing this website? Feel free to download or clone the repository at <a href="https://github.com/NilsSchnorr/MeshNotes" target="_blank">github.com/NilsSchnorr/MeshNotes</a></p>
+                    </div>
+                </section>
+
+                <!-- ENGLISH VERSION -->
+                <section>
+                    <h3>Legal Notice (English)</h3>
+                    <p>
+                        <strong>Nils Schnorr</strong><br>
+                        <a href="mailto:nils.schnorr@uni-saarland.de">nils.schnorr@uni-saarland.de</a><br>
+                        Phone: +49 681 302-3315<br>
+                        Universität des Saarlandes<br>
+                        Fakultät P - Altertumswissenschaften<br>
+                        Klassische Archäologie<br>
+                        Campus Gebäude B3.1 Raum 1.22<br>
+                        66123 Saarbrücken, Germany
+                    </p>
+                    
+                    <h4>Disclaimer</h4>
+                    
+                    <p><strong>Liability for Content</strong><br>
+                    As a service provider, we are responsible for our own content on these pages in accordance with general legislation pursuant to Section 7 (1) of the German Digital Services Act (DDG). However, according to Sections 8 to 10 DDG, we are not obligated to monitor transmitted or stored third-party information or to investigate circumstances that indicate illegal activity. Obligations to remove or block the use of information under general law remain unaffected. However, liability in this regard is only possible from the time of knowledge of a specific infringement. Upon becoming aware of such violations, we will remove this content immediately.</p>
+                    
+                    <p><strong>Liability for Links</strong><br>
+                    Our website contains links to external third-party websites over whose content we have no control. Therefore, we cannot accept any liability for this third-party content. The respective provider or operator of the linked pages is always responsible for the content of those pages. The linked pages were checked for possible legal violations at the time of linking. Illegal content was not recognizable at the time of linking. Permanent content control of the linked pages is not reasonable without concrete evidence of a violation of the law. Upon becoming aware of legal violations, we will remove such links immediately.</p>
+                    
+                    <p><strong>Copyright</strong><br>
+                    The content and works created by the site operators on these pages are subject to German copyright law. Duplication, processing, distribution, and any kind of exploitation outside the limits of copyright law require the written consent of the respective author or creator. Insofar as the content on this site was not created by the operator, the copyrights of third parties are respected. In particular, third-party content is marked as such. Should you nevertheless become aware of a copyright infringement, please inform us accordingly. Upon becoming aware of legal violations, we will remove such content immediately.</p>
+                </section>
+
+                <section>
+                    <h3>Data Policy (English)</h3>
+                    
+                    <h4>Controller</h4>
+                    <p>The controller within the meaning of the General Data Protection Regulation (GDPR) is:<br>
+                    <strong>Nils Schnorr</strong><br>
+                    <a href="mailto:nils.schnorr@uni-saarland.de">nils.schnorr@uni-saarland.de</a><br>
+                    Phone: +49 681 302-3315</p>
+                    
+                    <h4>No Cookies, No Tracking, No Analytics</h4>
+                    <p>MeshNotes does not use cookies, analytics, or tracking. All 3D model processing and annotation work happens entirely in your browser, and all program libraries are served from this site itself rather than third-party content delivery networks. Aside from the standard web-hosting requests described below, no user data is transmitted to any server during normal use. Local browser storage is used exclusively on your device and is never shared with anyone: <em>localStorage</em> holds your display preferences (e.g., background color, point size) and share-link history, and <em>IndexedDB</em> holds an automatic local backup of your current annotations so that in-progress work can be recovered if the browser or app closes unexpectedly (for example while working offline).</p>
+                    
+                    <h4>Sharing Feature &amp; Cloudflare Hosting</h4>
+                    <p>The optional <strong>Share</strong> feature allows users to upload model files and annotations to meshnotes.org to generate a shareable link. This upload is processed and stored using <strong>Cloudflare Workers and R2 object storage</strong>, services provided by Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA. Uploaded files are automatically deleted after 90 days. No data is uploaded unless the user explicitly clicks "Generate Link" in the Share dialog. When uploading, Cloudflare may process the user's IP address and request metadata. This processing is based on our legitimate interest in providing the sharing functionality (Art. 6(1)(f) GDPR). Cloudflare's handling of data is described in their <a href="https://www.cloudflare.com/privacypolicy/" target="_blank">Privacy Policy</a>. Data transfers to the US are covered by the <strong>EU-US Data Privacy Framework</strong>.</p>
+                    
+                    <h4>Hosting via GitHub Pages</h4>
+                    <p>This tool is hosted on GitHub Pages, a service provided by GitHub Inc., 88 Colin P Kelly Jr St, San Francisco, CA 94107, USA. When you access this website, GitHub’s servers automatically process your IP address, the requested page, your browser type, and your operating system in server logs. This processing is necessary for delivering the website and is based on our legitimate interest in providing this tool (Art. 6(1)(f) GDPR).</p>
+                    <p>GitHub’s handling of data is described in their <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank">Privacy Policy</a>. GitHub is based in the United States. Data transfers to the US are covered by the <strong>EU-US Data Privacy Framework</strong> (European Commission adequacy decision of 10 July 2023, C(2023)4745).</p>
+                    <p>Server logs are retained according to GitHub’s standard retention periods. The controller has no access to these logs.</p>
+                    
+                    <h4>Self-Hosted Libraries</h4>
+                    <p>All third-party JavaScript libraries (Three.js, three-mesh-bvh, jsPDF, pdf-lib, and the Draco decoder) are bundled with MeshNotes and served from this site's own origin. They are <strong>not</strong> loaded from external content delivery networks, so opening MeshNotes does not transmit your IP address or any request data to third parties such as unpkg, cdnjs, or Google. The only server your browser contacts when loading the page is the MeshNotes host itself (GitHub Pages, described above).</p>
+                    
+                    <h4>Your Rights</h4>
+                    <p>Under the GDPR, you have the right to access (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20), and objection to processing (Art. 21). To exercise these rights, contact the controller at the address above.</p>
+                    <p>You also have the right to lodge a complaint with a supervisory authority. The responsible authority is:<br>
+                    <strong>Unabhängiges Datenschutzzentrum Saarland</strong><br>
+                    Fritz-Dobisch-Straße 12, 66111 Saarbrücken<br>
+                    <a href="https://www.datenschutz.saarland.de" target="_blank">www.datenschutz.saarland.de</a></p>
+                    
+                    <h4>Open Source Contributions</h4>
+                    <p>MeshNotes is an open-source project hosted at <a href="https://github.com/NilsSchnorr/MeshNotes" target="_blank">github.com/NilsSchnorr/MeshNotes</a>. You can contribute if you wish, for example by submitting a pull request on GitHub. Please note: This project is published under the <strong>Apache License, Version 2.0</strong>, which will also apply to your contributions if the pull requests are accepted.</p>
+                </section>
+
+                <hr style="border: none; border-top: 2px solid #1A5A8A; margin: 32px 0;">
+
+                <!-- GERMAN VERSION -->
+                <section>
+                    <h3>Legal / Impressum (Deutsch)</h3>
+                    <p>
+                        <strong>Nils Schnorr</strong><br>
+                        <a href="mailto:nils.schnorr@uni-saarland.de">nils.schnorr@uni-saarland.de</a><br>
+                        Telefon: +49 681 302-3315<br>
+                        Universität des Saarlandes<br>
+                        Fakultät P - Altertumswissenschaften<br>
+                        Klassische Archäologie<br>
+                        Campus Gebäude B3.1 Raum 1.22<br>
+                        66123 Saarbrücken, Germany
+                    </p>
+                    
+                    <h4>Haftungsausschluss (Disclaimer)</h4>
+                    
+                    <p><strong>Haftung für Inhalte</strong><br>
+                    Als Diensteanbieter sind wir gemäß § 7 Abs.1 DDG für eigene Inhalte auf diesen Seiten nach den allgemeinen Gesetzen verantwortlich. Nach §§ 8 bis 10 DDG sind wir als Diensteanbieter jedoch nicht verpflichtet, übermittelte oder gespeicherte fremde Informationen zu überwachen oder nach Umständen zu forschen, die auf eine rechtswidrige Tätigkeit hinweisen. Verpflichtungen zur Entfernung oder Sperrung der Nutzung von Informationen nach den allgemeinen Gesetzen bleiben hiervon unberührt. Eine diesbezügliche Haftung ist jedoch erst ab dem Zeitpunkt der Kenntnis einer konkreten Rechtsverletzung möglich. Bei Bekanntwerden von entsprechenden Rechtsverletzungen werden wir diese Inhalte umgehend entfernen.</p>
+                    
+                    <p><strong>Haftung für Links</strong><br>
+                    Unser Angebot enthält Links zu externen Webseiten Dritter, auf deren Inhalte wir keinen Einfluss haben. Deshalb können wir für diese fremden Inhalte auch keine Gewähr übernehmen. Für die Inhalte der verlinkten Seiten ist stets der jeweilige Anbieter oder Betreiber der Seiten verantwortlich. Die verlinkten Seiten wurden zum Zeitpunkt der Verlinkung auf mögliche Rechtsverstöße überprüft. Rechtswidrige Inhalte waren zum Zeitpunkt der Verlinkung nicht erkennbar. Eine permanente inhaltliche Kontrolle der verlinkten Seiten ist jedoch ohne konkrete Anhaltspunkte einer Rechtsverletzung nicht zumutbar. Bei Bekanntwerden von Rechtsverletzungen werden wir derartige Links umgehend entfernen.</p>
+                    
+                    <p><strong>Urheberrecht</strong><br>
+                    Die durch die Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem deutschen Urheberrecht. Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art der Verwertung außerhalb der Grenzen des Urheberrechtes bedürfen der schriftlichen Zustimmung des jeweiligen Autors bzw. Erstellers. Soweit die Inhalte auf dieser Seite nicht vom Betreiber erstellt wurden, werden die Urheberrechte Dritter beachtet. Insbesondere werden Inhalte Dritter als solche gekennzeichnet. Sollten Sie trotzdem auf eine Urheberrechtsverletzung aufmerksam werden, bitten wir um einen entsprechenden Hinweis. Bei Bekanntwerden von Rechtsverletzungen werden wir derartige Inhalte umgehend entfernen.</p>
+
+                </section>
+
+                <section>
+                    <h3>Datenschutz (Deutsch)</h3>
+                    
+                    <h4>Verantwortlicher</h4>
+                    <p>Verantwortlicher im Sinne der Datenschutz-Grundverordnung (DSGVO) ist:<br>
+                    <strong>Nils Schnorr</strong><br>
+                    <a href="mailto:nils.schnorr@uni-saarland.de">nils.schnorr@uni-saarland.de</a><br>
+                    Telefon: +49 681 302-3315</p>
+                    
+                    <h4>Keine Cookies, kein Tracking, keine Analyse</h4>
+                    <p>MeshNotes verwendet keine Cookies, Analysedienste oder Tracking. Die gesamte Verarbeitung von 3D-Modellen und Annotationen erfolgt ausschließlich in Ihrem Browser, und alle Programmbibliotheken werden von dieser Seite selbst ausgeliefert und nicht von Content-Delivery-Networks Dritter. Abgesehen von den technisch erforderlichen Anfragen für das Webhosting (siehe unten) werden im normalen Betrieb keine Nutzerdaten an einen Server übermittelt. Der lokale Browserspeicher wird ausschließlich auf Ihrem Gerät genutzt und nicht an Dritte weitergegeben: <em>localStorage</em> speichert Ihre Anzeigeeinstellungen (z.B. Hintergrundfarbe, Punktgröße) und den Teilen-Verlauf, und <em>IndexedDB</em> speichert eine automatische lokale Sicherung Ihrer aktuellen Annotationen, damit nicht gespeicherte Arbeit wiederhergestellt werden kann, falls der Browser oder die App unerwartet schließt (z.B. bei der Offline-Nutzung).</p>
+                    
+                    <h4>Teilen-Funktion &amp; Cloudflare-Hosting</h4>
+                    <p>Die optionale <strong>Teilen</strong>-Funktion ermöglicht es, Modelldateien und Annotationen auf meshnotes.org hochzuladen, um einen teilbaren Link zu erzeugen. Dieser Upload wird über <strong>Cloudflare Workers und R2 Object Storage</strong> verarbeitet und gespeichert, Dienste der Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA. Hochgeladene Dateien werden nach 90 Tagen automatisch gelöscht. Es werden keine Daten hochgeladen, es sei denn, der Nutzer klickt ausdrücklich auf „Link generieren“ im Teilen-Dialog. Beim Hochladen kann Cloudflare die IP-Adresse und Anfrage-Metadaten des Nutzers verarbeiten. Diese Verarbeitung erfolgt auf Grundlage unseres berechtigten Interesses an der Bereitstellung der Teilen-Funktionalität (Art. 6 Abs. 1 lit. f DSGVO). Cloudflares Umgang mit Daten ist in deren <a href="https://www.cloudflare.com/de-de/privacypolicy/" target="_blank">Datenschutzerklärung</a> beschrieben. Die Datenübermittlung in die USA ist durch das <strong>EU-US Data Privacy Framework</strong> abgedeckt.</p>
+                    
+                    <h4>Hosting durch GitHub Pages</h4>
+                    <p>Dieses Tool wird auf GitHub Pages gehostet, einem Dienst der GitHub Inc., 88 Colin P Kelly Jr St, San Francisco, CA 94107, USA. Beim Zugriff auf diese Website verarbeiten die Server von GitHub automatisch Ihre IP-Adresse, die aufgerufene Seite, Ihren Browsertyp und Ihr Betriebssystem in Server-Logs. Diese Verarbeitung ist für die Auslieferung der Website erforderlich und erfolgt auf Grundlage unseres berechtigten Interesses an der Bereitstellung dieses Tools (Art. 6 Abs. 1 lit. f DSGVO).</p>
+                    <p>GitHubs Umgang mit Daten ist in deren <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank">Privacy Policy</a> beschrieben. GitHub hat seinen Sitz in den USA. Die Datenübermittlung in die USA ist durch das <strong>EU-US Data Privacy Framework</strong> (Angemessenheitsbeschluss der Europäischen Kommission vom 10. Juli 2023, C(2023)4745) abgedeckt.</p>
+                    <p>Server-Logs werden gemäß den Standard-Aufbewahrungsfristen von GitHub gespeichert. Der Verantwortliche hat keinen Zugriff auf diese Logs.</p>
+                    
+                    <h4>Selbst gehostete Bibliotheken</h4>
+                    <p>Alle quelloffenen JavaScript-Bibliotheken (Three.js, three-mesh-bvh, jsPDF, pdf-lib sowie der Draco-Decoder) sind in MeshNotes gebündelt und werden vom eigenen Ursprung dieser Seite ausgeliefert. Sie werden <strong>nicht</strong> von externen Content-Delivery-Networks geladen. Das Öffnen von MeshNotes übermittelt daher weder Ihre IP-Adresse noch sonstige Anfragedaten an Dritte wie unpkg, cdnjs oder Google. Der einzige Server, den Ihr Browser beim Laden der Seite kontaktiert, ist der MeshNotes-Host selbst (GitHub Pages, siehe oben).</p>
+                    
+                    <h4>Ihre Rechte</h4>
+                    <p>Nach der DSGVO stehen Ihnen folgende Rechte zu: Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch gegen die Verarbeitung (Art. 21). Zur Ausübung dieser Rechte wenden Sie sich an den oben genannten Verantwortlichen.</p>
+                    <p>Sie haben zudem das Recht, sich bei einer Aufsichtsbehörde zu beschweren. Die zuständige Aufsichtsbehörde ist:<br>
+                    <strong>Unabhängiges Datenschutzzentrum Saarland</strong><br>
+                    Fritz-Dobisch-Straße 12, 66111 Saarbrücken<br>
+                    <a href="https://www.datenschutz.saarland.de" target="_blank">www.datenschutz.saarland.de</a></p>
+                    
+                    <h4>Open-Source-Beiträge</h4>
+                    <p>MeshNotes ist ein Open-Source-Projekt, gehostet auf <a href="https://github.com/NilsSchnorr/MeshNotes" target="_blank">github.com/NilsSchnorr/MeshNotes</a>. Sie können dazu beitragen, z.B. durch einen Pull-Request auf GitHub. Beachten Sie dabei: Dieses Projekt ist unter der <strong>Apache License, Version 2.0</strong> veröffentlicht, diese gilt dann auch für Ihre Beiträge, wenn die Pull-Requests angenommen werden.</p>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Dialog -->
+    <div id="share-overlay">
+        <div id="share-modal">
+            <div id="share-modal-header">
+                <h2 data-icon="share">Share</h2>
+                <button id="share-modal-close">✕</button>
+            </div>
+            <div id="share-modal-content">
+                <!-- Choice state (default) -->
+                <div id="share-choice">
+                    <div class="share-mode-toggle">
+                        <button id="share-mode-ephemeral" class="share-mode-btn active">Quick Share (90 days)</button>
+                        <button id="share-mode-longterm" class="share-mode-btn">Permanent (own hosting)</button>
+                    </div>
+
+                    <!-- Quick share section -->
+                    <div id="share-ephemeral-section">
+                        <p style="margin-top: 16px;">Uploads your model and annotations to meshnotes.org for 90 days. Anyone with the link can open them in MeshNotes.</p>
+                        <p class="share-privacy-note">⚠️ By clicking <strong>Generate Link</strong>, your model file and annotations will be uploaded to meshnotes.org. Your data will no longer be fully offline. Maximum file size: 100 MB.</p>
+                        <p class="share-privacy-note" style="margin-top: 6px;"><strong>Tip:</strong> Large GLB files? Reduce size with Draco compression before sharing (see <em>Model Preparation &amp; Format Guide</em> in the Manual for easy examples).</p>
+                        <button id="share-generate-btn" class="share-action-btn" disabled style="margin-top: 12px; width: 100%;">Generate Link</button>
+
+                        <!-- Previously generated links -->
+                        <div id="share-history-toggle" class="share-history-toggle">
+                            <span class="toggle-arrow">▶</span> Previously generated links
+                        </div>
+                        <div id="share-history" class="share-history">
+                            <div id="share-history-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Long-term sharing section -->
+                    <div id="share-longterm" style="display:none;">
+                        <p style="margin-top: 16px;">Enter CORS-friendly URLs for your model and annotation files:</p>
+                        <label for="longterm-model-url">Model URL *</label>
+                        <input type="text" id="longterm-model-url" placeholder="https://your-repository.org/api/access/datafile/...">
+                        <label for="longterm-model-format" style="margin-top: 8px;">Model Format *</label>
+                        <select id="longterm-model-format" style="width:100%; padding:8px 12px; background:var(--color-input-bg,#0a2a3f); border:1px solid #1A5A8A; color:#eee; border-radius:4px; font-size:13px;">
+                            <option value="glb">GLB</option>
+                            <option value="obj">OBJ</option>
+                            <option value="ply">PLY</option>
+                            <option value="stl">STL</option>
+                        </select>
+                        <p class="share-privacy-note" style="font-size: 12px;"><strong>Tip:</strong> GLB is recommended for permanent sharing because it bundles the model, materials, and textures into a single file. If your model is OBJ with separate MTL/texture files, consider converting to GLB before uploading to your repository.</p>
+                        <label for="longterm-annotations-url" style="margin-top: 8px;">Annotations URL (optional)</label>
+                        <input type="text" id="longterm-annotations-url" placeholder="https://your-repository.org/api/access/datafile/...">
+                        <button id="longterm-generate-btn" class="share-action-btn" disabled style="margin-top: 12px; width: 100%;">Generate Permanent Link</button>
+                    </div>
+                </div>
+
+                <!-- Progress state -->
+                <div id="share-progress" style="display:none;">
+                    <div class="share-spinner"></div>
+                    <p id="share-progress-text">Uploading...</p>
+                </div>
+
+                <!-- Result state -->
+                <div id="share-result" style="display:none;">
+                    <p style="margin-bottom: 8px;"><strong>Share link created!</strong></p>
+                    <div class="share-link-row">
+                        <input type="text" id="share-link" readonly>
+                        <button id="share-copy-btn" data-icon="copy">Copy</button>
+                    </div>
+                    <p id="share-expiry" style="margin-top: 8px; font-size: 12px;"></p>
+                    <p style="margin-top: 12px; font-size: 12px;">Anyone with this link can open the model and annotations in MeshNotes.</p>
+                </div>
+
+                <!-- Error state -->
+                <div id="share-error" style="display:none;">
+                    <p style="color: #ff6b6b;"><strong>Upload failed</strong></p>
+                    <p id="share-error-message" style="margin-top: 8px; font-size: 13px;"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-annotation "See what I see" share dialog -->
+    <div id="annotation-share-overlay">
+        <div id="annotation-share-modal">
+            <div id="annotation-share-modal-header">
+                <h2 data-icon="share">Share this annotation</h2>
+                <button id="annotation-share-modal-close">✕</button>
+            </div>
+            <div id="annotation-share-modal-content">
+                <!-- Explanation state (default) -->
+                <div id="ann-share-explain">
+                    <p style="margin-top: 4px;">This creates a link that opens <strong id="ann-share-target-name">this annotation</strong> in the exact view you have right now — your camera angle, zoom, lighting, model opacity, display mode and flip. It lets the recipient <em>see what you see</em>.</p>
+                    <p style="margin-top: 10px;">All annotations on the model travel with the link; this one opens highlighted. Your personal display preferences (background colour, mesh/wireframe colours, point and text sizes) are <strong>not</strong> shared — the recipient keeps their own.</p>
+                    <p class="share-privacy-note">⚠️ By clicking <strong>Generate Link</strong>, your model file and all annotations are uploaded to meshnotes.org and stay available for 90 days. Your data will no longer be fully offline. Maximum file size: 100 MB.</p>
+                    <div style="display:flex; gap:8px; margin-top: 14px;">
+                        <button id="ann-share-cancel-btn" class="share-action-btn" style="flex:1; background:transparent; border:1px solid var(--color-blue); color:var(--color-text-muted);">Cancel</button>
+                        <button id="ann-share-generate-btn" class="share-action-btn" style="flex:2;">Generate Link</button>
+                    </div>
+
+                    <!-- Previously generated links -->
+                    <div id="ann-share-history-toggle" class="share-history-toggle">
+                        <span class="toggle-arrow">▶</span> Previously generated links
+                    </div>
+                    <div id="ann-share-history" class="share-history">
+                        <div id="ann-share-history-list"></div>
+                    </div>
+                </div>
+
+                <!-- Progress state -->
+                <div id="ann-share-progress" style="display:none;">
+                    <div class="share-spinner"></div>
+                    <p id="ann-share-progress-text">Uploading...</p>
+                </div>
+
+                <!-- Result state -->
+                <div id="ann-share-result" style="display:none;">
+                    <p style="margin-bottom: 8px;"><strong>Share link created!</strong></p>
+                    <div class="share-link-row">
+                        <input type="text" id="ann-share-link" readonly>
+                        <button id="ann-share-copy-btn" data-icon="copy">Copy</button>
+                    </div>
+                    <p id="ann-share-expiry" style="margin-top: 8px; font-size: 12px;"></p>
+                    <p style="margin-top: 12px; font-size: 12px;">Anyone with this link opens the model with your view restored and this annotation highlighted.</p>
+                </div>
+
+                <!-- Error state -->
+                <div id="ann-share-error" style="display:none;">
+                    <p style="color: #ff6b6b;"><strong>Upload failed</strong></p>
+                    <p id="ann-share-error-message" style="margin-top: 8px; font-size: 13px;"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Read-only "Shared Annotation View" (opens only from a shared link) -->
+    <div id="annotation-viewer">
+        <div id="annotation-viewer-header">
+            <span class="av-title">Shared Annotation View</span>
+            <button id="annotation-viewer-close" title="Close">✕</button>
+        </div>
+        <div id="annotation-viewer-body">
+            <p class="av-note">You're viewing a shared annotation — read only. Open it from the sidebar to edit.</p>
+            <div id="annotation-viewer-name"></div>
+            <div id="annotation-viewer-meta"></div>
+            <div id="annotation-viewer-entries"></div>
+        </div>
+    </div>
+
+    <div id="toolbar">
+        <input type="file" id="file-input" accept=".glb,.gltf,.obj,.ply,.stl">
+        <input type="file" id="import-input" accept=".json,.jsonld">
+        <input type="file" id="obj-material-input" accept=".mtl,.jpg,.jpeg,.png,.tif,.tiff" multiple>
+        <input type="file" id="ply-texture-input" accept=".jpg,.jpeg,.png,.tif,.tiff">
+        
+        <div class="export-dropdown" id="import-dropdown">
+            <button class="tool-btn" id="btn-import-menu" data-icon="import" title="Import model or annotations">Import ▾</button>
+            <div class="export-dropdown-menu" id="import-dropdown-menu">
+                <button class="export-dropdown-item" id="btn-load" data-icon="model3d">3D Model (.glb, .obj, .ply, .stl)</button>
+                <button class="export-dropdown-item" id="btn-import" data-icon="jsonld">Annotations (.jsonld)</button>
+            </div>
+        </div>
+        <button class="tool-btn" id="btn-texture" disabled data-icon="texture" title="Toggle Texture">Texture</button>
+        
+        <div class="tool-separator"></div>
+        
+        <button class="tool-btn" id="btn-point" disabled data-icon="point" title="Add Point Annotation">Point</button>
+        <button class="tool-btn" id="btn-line" disabled data-icon="line" title="Add Line Annotation">Line</button>
+        <button class="tool-btn" id="btn-polygon" disabled data-icon="polygon" title="Add Polygon Annotation">Polygon</button>
+        <button class="tool-btn" id="btn-surface" disabled data-icon="surface" title="Add Surface Annotation">Surface</button>
+        <button class="tool-btn" id="btn-box" disabled data-icon="box" title="Add Box Annotation">Box</button>
+        <button class="tool-btn" id="btn-measure" disabled data-icon="measure" title="Measure Distance">Measure</button>
+        
+        <div class="tool-separator"></div>
+        
+        <div class="export-dropdown" id="screenshot-dropdown">
+            <button class="tool-btn" id="btn-screenshot" disabled data-icon="screenshot" title="Screenshot or six-view plate">Screenshot ▾</button>
+            <div class="export-dropdown-menu" id="screenshot-dropdown-menu">
+                <button class="export-dropdown-item" id="btn-screenshot-single" data-icon="screenshot">Screenshot</button>
+                <button class="export-dropdown-item" id="btn-export-views" data-icon="pdfExport">Six-View Plate…</button>
+            </div>
+        </div>
+        <div class="export-dropdown" id="export-dropdown">
+            <button class="tool-btn" id="btn-export" disabled data-icon="export" title="Export annotations or PDF report">Export ▾</button>
+            <div class="export-dropdown-menu" id="export-dropdown-menu">
+                <button class="export-dropdown-item" id="btn-export-jsonld" data-icon="jsonldExport">JSON-LD (.jsonld)</button>
+                <button class="export-dropdown-item" id="btn-export-pdf" data-icon="pdfExport">PDF Report</button>
+                <button class="export-dropdown-item" id="btn-export-model" data-icon="modelExport">Model Files</button>
+            </div>
+        </div>
+        <button class="tool-btn" id="btn-share" data-icon="share" title="Share model and annotations via link">Share</button>
+        
+        <button id="btn-settings" data-icon="settings" title="Settings">Settings</button>
+    </div>
+
+    <div id="container">
+        <div id="viewport">
+            <canvas id="canvas"></canvas>
+
+            <div id="measure-panels">
+            <div id="measurement-display">
+                <div class="measure-title">
+                    <span class="icon" data-icon="measure"></span>
+                    <span class="name">Measurement Tool</span>
+                </div>
+                <div id="measurements-list"></div>
+                <div class="measure-help">
+                    <div class="measure-help-row"><span class="help-key">Click</span><span class="measure-help-desc">Place point</span></div>
+                    <div class="measure-help-row"><span class="help-key">2nd click</span><span class="measure-help-desc">Complete</span></div>
+                    <div class="measure-help-row"><span class="help-key">Ctrl</span><span class="help-key">+click</span><span class="measure-help-desc">Add more points</span></div>
+                    <div class="measure-help-row"><span class="help-key">Ctrl</span><span class="help-key">Z</span><span class="measure-help-desc">Undo point</span></div>
+                    <div class="measure-help-row"><span class="help-key">Click value</span><span class="measure-help-desc">Copy to clipboard</span></div>
+                    <div class="measure-help-row"><span class="help-key">Esc</span><span class="measure-help-desc">Clear all</span></div>
+                </div>
+            </div>
+
+            <div id="cutting-plane-display">
+                <div class="measure-title">
+                    <span class="name">Cutting Plane</span>
+                </div>
+                <div class="cutting-plane-controls">
+                    <button id="btn-spawn-plane" class="cutting-plane-btn">Spawn Plane</button>
+                    <button id="btn-extract-profile" class="cutting-plane-btn" disabled>Extract Profile</button>
+                </div>
+                <div class="measure-help">
+                    <div class="measure-help-row"><span class="help-key">Left-drag</span><span class="measure-help-desc">Move plane</span></div>
+                    <div class="measure-help-row"><span class="help-key">Right-drag</span><span class="measure-help-desc">Tilt plane</span></div>
+                    <div class="measure-help-row"><span class="help-key">Ctrl</span><span class="help-key">Left-drag</span><span class="measure-help-desc">Swing</span></div>
+                    <div class="measure-help-row"><span class="help-desc" style="font-size: 11px; color: #888;">Align your camera view first,</span></div>
+                    <div class="measure-help-row"><span class="help-desc" style="font-size: 11px; color: #888;">then spawn — the plane appears</span></div>
+                    <div class="measure-help-row"><span class="help-desc" style="font-size: 11px; color: #888;">perpendicular to your viewpoint.</span></div>
+                </div>
+            </div>
+            </div>
+
+            <div id="brush-display">
+                <div class="brush-title">
+                    <span class="icon" data-icon="surface"></span>
+                    <span class="name">Surface Annotation</span>
+                </div>
+                <div class="brush-controls">
+                    <label>
+                        <span>Brush Size</span>
+                        <span id="brush-value">5%</span>
+                    </label>
+                    <input type="range" id="brush-slider" min="0.1" max="20" value="5" step="0.1">
+                </div>
+                <div class="brush-help">
+                    <div class="brush-help-section">
+                        <div class="brush-help-title">Painting</div>
+                        <div class="brush-help-row"><span class="help-key">Left-drag</span><span class="brush-help-desc">Paint faces</span></div>
+                        <div class="brush-help-row"><span class="help-key">Shift</span><span class="help-key">+drag</span><span class="brush-help-desc">Erase</span></div>
+                        <div class="brush-help-row"><span class="help-key">Ctrl</span><span class="help-key">Z</span><span class="brush-help-desc">Undo stroke</span></div>
+                        <div class="brush-help-row"><span class="help-key">Double-click</span><span class="brush-help-desc">Finish</span></div>
+                        <div class="brush-help-row"><span class="help-key">Esc</span><span class="brush-help-desc">Cancel</span></div>
+                    </div>
+                    <div class="brush-help-section">
+                        <div class="brush-help-title">Navigation</div>
+                        <div class="brush-help-row"><span class="help-key">Right-drag</span><span class="brush-help-desc">Rotate view</span></div>
+                        <div class="brush-help-row"><span class="help-key">Ctrl</span><span class="help-key">Right-drag</span><span class="brush-help-desc">Pan</span></div>
+                        <div class="brush-help-row"><span class="help-key">Scroll</span><span class="brush-help-desc">Zoom</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tool Help Panel - persistent instructions while tool is active -->
+            <div id="tool-help">
+                <div id="tool-help-title">
+                    <span class="icon"></span>
+                    <span class="name"></span>
+                </div>
+                <div id="tool-help-content"></div>
+            </div>
+
+            <div id="instructions">
+                <strong>Controls:</strong> Left-drag rotate · Right-drag pan · Scroll zoom
+            </div>
+
+            <div id="model-stats">
+                <span id="face-count"></span>
+            </div>
+
+            <div id="viewhelper-container">
+                <canvas id="viewhelper-canvas" width="128" height="128"></canvas>
+            </div>
+
+            <div id="sliders-panel">
+                <div id="sliders-panel-header">
+                    <button id="camera-toggle" title="Toggle Orthographic/Perspective View">Perspective</button>
+                    <button id="flip-toggle" title="Flip model upside down (visual only)">Flip</button>
+                </div>
+                <div id="sliders-panel-content">
+                    <div class="light-mode-row">
+                        <label>Light Source</label>
+                        <button class="light-toggle-btn active" id="light-toggle" title="Toggle between camera-linked and fixed light">Follows Camera</button>
+                    </div>
+                    <div id="light-direction-row">
+                        <div class="light-sliders-group">
+                            <div class="slider-row">
+                                <label>
+                                    <span>Horizontal</span>
+                                    <span id="light-azimuth-value">0°</span>
+                                </label>
+                                <input type="range" id="light-azimuth-slider" min="0" max="360" value="0">
+                            </div>
+                            <div class="slider-row">
+                                <label>
+                                    <span>Vertical</span>
+                                    <span id="light-elevation-value">45°</span>
+                                </label>
+                                <input type="range" id="light-elevation-slider" min="-90" max="90" value="45">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="slider-row">
+                        <label>
+                            <span>Brightness</span>
+                            <span id="brightness-value">100%</span>
+                        </label>
+                        <input type="range" id="brightness-slider" min="0" max="300" value="100">
+                    </div>
+                    <div class="slider-row">
+                        <label>
+                            <span>Model Opacity</span>
+                            <span id="opacity-value">100%</span>
+                        </label>
+                        <input type="range" id="opacity-slider" min="10" max="100" value="100">
+                    </div>
+                </div>
+                <div id="sliders-panel-footer">
+                    <div id="sliders-panel-toggle" title="Minimize panel">▼</div>
+                </div>
+            </div>
+
+            <div id="status"></div>
+            <div id="loading">Loading model...</div>
+
+            <!-- Popup backdrop for viewport popups (click to close) -->
+            <div id="popup-backdrop"></div>
+
+            <!-- Annotation Popup -->
+            <div class="popup" id="annotation-popup">
+                <div class="popup-header-row">
+                    <h3 id="popup-title">New Annotation</h3>
+                    <button class="popup-close-btn" id="annotation-popup-close" title="Close">✕</button>
+                </div>
+                
+                <div id="popup-main-fields">
+                    <label for="ann-name">Name *</label>
+                    <input type="text" id="ann-name" placeholder="e.g., Door remains">
+                    
+                    <label for="ann-group">Group</label>
+                    <div class="group-select-row">
+                        <select id="ann-group"></select>
+                        <button type="button" class="btn-add-group-inline" id="btn-add-group-inline" title="Create new group">+</button>
+                    </div>
+                    
+                    <!-- Inline new group form (hidden by default) -->
+                    <div id="inline-new-group-form" class="inline-new-group-form">
+                        <div class="inline-group-inputs">
+                            <input type="text" id="inline-group-name" placeholder="New group name">
+                            <input type="color" id="inline-group-color" value="#EDC040" title="Group color">
+                        </div>
+                        <div class="inline-group-buttons">
+                            <button type="button" class="btn-cancel-inline" id="btn-cancel-inline-group">Cancel</button>
+                            <button type="button" class="btn-save-inline" id="btn-save-inline-group">Create</button>
+                        </div>
+                    </div>
+                    
+                    <div id="surface-projection-toggle" style="display: none;">
+                        <label class="projection-checkbox-label">
+                            <input type="checkbox" id="ann-surface-projection" checked>
+                            Project line(s) to surface
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Entries container (shown when editing) -->
+                <div id="entries-container" style="display: none;">
+                    <div id="entries-list"></div>
+                    <button class="btn-add-entry" id="btn-add-entry">+ Add Entry</button>
+                </div>
+                
+                <!-- New entry form (shown when creating or adding entry) -->
+                <div id="new-entry-form">
+                    <label for="ann-description">Description</label>
+                    <textarea id="ann-description" placeholder="Describe what you observe..."></textarea>
+                    
+                    <label for="ann-author">Author</label>
+                    <input type="text" id="ann-author" placeholder="Your name">
+                    
+                    <div class="links-section">
+                        <label>External Links</label>
+                        <div class="links-list" id="ann-links"></div>
+                        <div class="add-link-row">
+                            <input type="text" id="ann-new-link" placeholder="https://...">
+                            <button class="btn-save" id="btn-add-link">+</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="btn-row">
+                    <button class="btn-delete" id="btn-popup-delete" style="display: none;">Delete Annotation</button>
+                    <button class="btn-cancel" id="btn-popup-cancel">Cancel</button>
+                    <button class="btn-save" id="btn-popup-save">Save</button>
+                </div>
+            </div>
+
+            <!-- Confirmation Dialog -->
+            <div class="confirm-overlay" id="confirm-overlay">
+                <div class="confirm-dialog">
+                    <button class="confirm-close-btn" id="confirm-dialog-close" title="Close">✕</button>
+                    <p id="confirm-message">Are you sure?</p>
+                    <div class="btn-row">
+                        <button class="btn-cancel" id="confirm-cancel">Cancel</button>
+                        <button class="btn-save" id="confirm-ok">Confirm</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Annotation Clear Dialog (shown when loading new model with existing annotations) -->
+            <div class="confirm-overlay" id="annotation-clear-overlay">
+                <div class="confirm-dialog" style="max-width: 450px;">
+                    <button class="confirm-close-btn" id="annotation-clear-dialog-close" title="Close">✕</button>
+                    <p id="annotation-clear-message">You have annotations from the current model. What would you like to do?</p>
+                    <p style="margin-top: 12px; font-size: 12px; color: #888;">Clearing will remove all annotations, groups, and measurements from the workspace.</p>
+                    <div class="btn-row" style="margin-top: 16px; flex-wrap: wrap;">
+                        <button class="btn-cancel" id="annotation-clear-cancel">Cancel</button>
+                        <button class="btn-delete" id="annotation-clear-discard">Clear</button>
+                        <button class="btn-save" id="annotation-clear-export">Export & Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Refresh Confirmation Dialog (shown when clicking logo with existing annotations) -->
+            <div class="confirm-overlay" id="refresh-confirm-overlay">
+                <div class="confirm-dialog" style="max-width: 450px;">
+                    <button class="confirm-close-btn" id="refresh-confirm-dialog-close" title="Close">✕</button>
+                    <p id="refresh-confirm-message">You have annotations in the current session. What would you like to do before refreshing?</p>
+                    <p style="margin-top: 12px; font-size: 12px; color: #888;">Refreshing will reset the workspace and all unsaved annotations will be lost.</p>
+                    <div class="btn-row" style="margin-top: 16px; flex-wrap: wrap;">
+                        <button class="btn-cancel" id="refresh-confirm-cancel">Cancel</button>
+                        <button class="btn-delete" id="refresh-confirm-refresh">Refresh</button>
+                        <button class="btn-save" id="refresh-confirm-export">Export & Refresh</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Six-View Plate Format Dialog -->
+            <div class="confirm-overlay" id="plate-format-overlay">
+                <div class="confirm-dialog" style="max-width: 450px;">
+                    <button class="confirm-close-btn" id="plate-format-dialog-close" title="Close">✕</button>
+                    <p><strong>Six-View Plate</strong> — six orthogonal views in an unfolded-cube layout, sharing one scale, with a scale bar below the block.</p>
+                    <p style="margin-top: 12px; font-size: 12px; color: #888;">Choose an output format. PNG has a transparent background for placing into figures; PDF fits the plate to the page size set under PDF Export.</p>
+                    <div class="btn-row" style="margin-top: 16px;">
+                        <button class="btn-cancel" id="plate-format-png">PNG</button>
+                        <button class="btn-save" id="plate-format-pdf">PDF</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scalebar Confirmation Dialog -->
+            <div class="confirm-overlay" id="scalebar-confirm-overlay">
+                <div class="confirm-dialog" style="max-width: 450px;">
+                    <button class="confirm-close-btn" id="scalebar-confirm-dialog-close" title="Close">✕</button>
+                    <p id="scalebar-confirm-message">You are currently in <strong>Perspective</strong> view. A scalebar can only be included in <strong>Orthographic</strong> view where scale is uniform across the image.</p>
+                    <p style="margin-top: 12px; font-size: 12px; color: #888;">Would you like to switch to Orthographic view to include a scalebar?</p>
+                    <div class="btn-row" style="margin-top: 16px;">
+                        <button class="btn-cancel" id="scalebar-no-switch">Continue without scalebar</button>
+                        <button class="btn-save" id="scalebar-switch">Switch & include scalebar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OBJ Material Dialog -->
+            <div id="obj-dialog-overlay">
+                <div class="obj-dialog">
+                    <div class="dialog-header-row">
+                        <h3>OBJ File Detected</h3>
+                        <button class="dialog-close-btn" id="obj-dialog-close" title="Close">✕</button>
+                    </div>
+                    <p>Would you like to add material (.mtl) and/or texture files (.jpg, .png)?<br>You can select one or multiple files.</p>
+                    <div class="axis-selector">
+                        <label class="axis-heading">Model up-axis orientation:</label>
+                        <div class="axis-options">
+                            <label><input type="radio" name="obj-up-axis" value="z-up" checked> Z-up (typically Metashape, CloudCompare, MeshLab, and others)</label>
+                            <label><input type="radio" name="obj-up-axis" value="y-up"> Y-up (typically Blender OBJ export)</label>
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn-secondary" id="obj-load-plain">Load without materials</button>
+                        <button class="btn-primary" id="obj-add-materials">Add Textures & Materials</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ply-dialog-overlay">
+                <div class="obj-dialog">
+                    <div class="dialog-header-row">
+                        <h3>PLY File Detected</h3>
+                        <button class="dialog-close-btn" id="ply-dialog-close" title="Close">✕</button>
+                    </div>
+                    <p>Would you like to add a texture image (.jpg, .png)?<br>This requires your PLY to contain UV coordinates.</p>
+                    <div class="axis-selector">
+                        <label class="axis-heading">Model up-axis orientation:</label>
+                        <div class="axis-options">
+                            <label><input type="radio" name="ply-up-axis" value="z-up" checked> Z-up (typically Metashape, CloudCompare, MeshLab, Blender, and others)</label>
+                            <label><input type="radio" name="ply-up-axis" value="y-up"> Y-up (e.g. manually converted)</label>
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn-secondary" id="ply-load-plain">Load without texture</button>
+                        <button class="btn-primary" id="ply-add-texture">Add Texture</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stl-dialog-overlay">
+                <div class="obj-dialog">
+                    <div class="dialog-header-row">
+                        <h3>STL File Detected</h3>
+                        <button class="dialog-close-btn" id="stl-dialog-close" title="Close">✕</button>
+                    </div>
+                    <p>STL files contain geometry only (no textures or vertex colors).</p>
+                    <div class="axis-selector">
+                        <label class="axis-heading">Model up-axis orientation:</label>
+                        <div class="axis-options">
+                            <label><input type="radio" name="stl-up-axis" value="z-up" checked> Z-up (most common for STL files)</label>
+                            <label><input type="radio" name="stl-up-axis" value="y-up"> Y-up (e.g. some Blender exports)</label>
+                        </div>
+                    </div>
+                    <div class="btn-row">
+                        <button class="btn-primary" id="stl-load-btn">Load Model</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Group Popup -->
+            <div class="popup" id="group-popup">
+                <div class="popup-header-row">
+                    <h3 id="group-popup-title">New Group</h3>
+                    <button class="popup-close-btn" id="group-popup-close" title="Close">✕</button>
+                </div>
+                <label for="group-name">Name</label>
+                <input type="text" id="group-name" placeholder="e.g., Phase 1 features">
+                
+                <label for="group-color">Color</label>
+                <input type="color" id="group-color" value="#EDC040">
+                
+                <div class="group-opacity-row">
+                    <label>
+                        <span>Opacity</span>
+                        <span id="group-opacity-value">100%</span>
+                    </label>
+                    <input type="range" id="group-opacity" min="5" max="100" value="100">
+                </div>
+                
+                <div class="btn-row">
+                    <button class="btn-delete" id="btn-group-delete" style="display: none;">Delete</button>
+                    <button class="btn-cancel" id="btn-group-cancel">Cancel</button>
+                    <button class="btn-save" id="btn-group-save">Save</button>
+                </div>
+            </div>
+
+            <!-- Metadata Popup -->
+            <div class="popup metadata-popup" id="metadata-popup">
+                <div class="popup-header-row">
+                    <h3>Meta- and Paradata Report</h3>
+                    <button class="popup-close-btn" id="metadata-popup-close" title="Close">✕</button>
+                </div>
+                <div class="metadata-popup-actions">
+                    <button class="btn-save" id="btn-metadata-download-json" data-icon="jsonDownload" title="Download as JSON (re-importable)">JSON download</button>
+                    <button class="btn-save" id="btn-metadata-download-pdf" data-icon="pdfDownload" title="Download as fillable PDF">PDF download</button>
+                    <label class="btn-save btn-metadata-upload" data-icon="jsonUpload" title="Import metadata from JSON">
+                        JSON upload
+                        <input type="file" id="metadata-upload-input" accept=".json" style="display: none;">
+                    </label>
+                </div>
+                <div class="metadata-popup-body" id="metadata-popup-body"></div>
+                <div class="btn-row">
+                    <button class="btn-save" id="btn-metadata-save">Save</button>
+                    <button class="btn-cancel" id="btn-metadata-close">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <button id="sidebar-toggle" aria-label="Toggle sidebar">&#9664;</button>
+            <div class="sidebar-content">
+                <div class="sidebar-section" style="flex: 1; overflow-y: auto;">
+                    <h2>General Information</h2>
+
+                    <!-- Model Information & Metadata -->
+                    <div id="model-info-section">
+                        <div class="model-info-item" id="model-info-item">
+                            <div class="model-info-header">
+                                <span class="model-info-icon" data-icon="modelInfo"></span>
+                                <span class="model-info-title">Model Information</span>
+                                <button class="annotation-edit-btn" id="model-info-edit-btn" data-icon="edit" title="Edit model information"></button>
+                            </div>
+                            <div class="model-info-subtitle" id="model-info-subtitle">No entries yet</div>
+                        </div>
+
+                        <div class="model-info-item" id="metadata-item" style="margin-top: 6px;">
+                            <div class="model-info-header">
+                                <span class="model-info-icon" data-icon="modelInfo"></span>
+                                <span class="model-info-title">Metadata Report</span>
+                                <button class="annotation-edit-btn" id="metadata-edit-btn" data-icon="edit" title="Edit metadata"></button>
+                            </div>
+                            <div class="model-info-subtitle" id="metadata-subtitle">No metadata yet</div>
+                        </div>
+                    </div>
+
+                    <h2>
+                        Annotations
+                        <button class="tool-btn" id="btn-add-group">+ Group</button>
+                    </h2>
+
+                    <!-- Search Box -->
+                    <div id="search-box">
+                        <input type="text" id="search-input" placeholder="Search annotations...">
+                    </div>
+
+                    <div id="groups-container">
+                        <div class="empty-state" id="no-groups">No annotations yet. Load a model and use the tools to annotate.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- jsPDF library for PDF export -->
+    <script src="vendor/jspdf/jspdf.umd.min.js"></script>
+
+    <!-- pdf-lib for fillable PDF metadata forms -->
+    <script src="vendor/pdf-lib/pdf-lib.min.js"></script>
+
+    <!-- Profile Preview Overlay -->
+    <div id="profile-preview-overlay">
+        <div id="profile-preview-modal">
+            <div id="profile-preview-header">
+                <span>Profile Preview</span>
+                <button id="profile-preview-close">&times;</button>
+            </div>
+            <div id="profile-preview-container"></div>
+            <div id="profile-preview-actions">
+                <button id="btn-download-svg" class="profile-action-btn">Download SVG</button>
+                <button id="btn-download-png" class="profile-action-btn">Download PNG</button>
+                <button id="btn-profile-cancel" class="profile-action-btn cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./vendor/three/build/three.module.js",
+                "three/addons/": "./vendor/three/examples/jsm/",
+                "three-mesh-bvh": "./vendor/three-mesh-bvh/index.module.js"
+            }
+        }
+    </script>
+
+    <script type="module" src="js/main.js"></script>
+
+    <!-- Service worker: offline support + installable PWA, with a non-disruptive
+         "new version available" prompt (we never auto-reload mid-session). -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+            const offerWhenInstalled = (worker) => {
+              if (!worker) return;
+              worker.addEventListener('statechange', () => {
+                // New version finished installing while an old one still controls the page.
+                if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                  showUpdateBanner(reg);
+                }
+              });
+            };
+            if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg);
+            reg.addEventListener('updatefound', () => offerWhenInstalled(reg.installing));
+          }).catch((err) => console.warn('Service worker registration failed:', err));
+
+          // Reload once the newly activated worker takes control (after the user accepts).
+          let reloaded = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (reloaded) return;
+            reloaded = true;
+            window.location.reload();
+          });
+        });
+      }
+
+      function showUpdateBanner(reg) {
+        if (document.getElementById('mn-update-banner')) return;
+        const bar = document.createElement('div');
+        bar.id = 'mn-update-banner';
+        bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99999;display:flex;gap:12px;align-items:center;background:#041D31;color:#eee;border:1px solid #1A5A8A;border-radius:8px;padding:10px 14px;font:13px/1.4 system-ui,-apple-system,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.45)';
+        const msg = document.createElement('span');
+        msg.textContent = 'A new version of MeshNotes is available.';
+        const reload = document.createElement('button');
+        reload.textContent = 'Reload';
+        reload.style.cssText = 'background:#AA8101;color:#041D31;border:0;border-radius:5px;padding:5px 12px;font-weight:600;cursor:pointer';
+        reload.onclick = () => { if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' }); };
+        const dismiss = document.createElement('button');
+        dismiss.textContent = '✕';
+        dismiss.setAttribute('aria-label', 'Dismiss');
+        dismiss.style.cssText = 'background:transparent;color:#9bb;border:0;font-size:15px;cursor:pointer;padding:2px 4px';
+        dismiss.onclick = () => bar.remove();
+        bar.append(msg, reload, dismiss);
+        document.body.appendChild(bar);
+      }
+    </script>
+</body>
+</html>

@@ -1,0 +1,757 @@
+// js/core/model-loader.js
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+import { state, dom } from '../state.js';
+import { getIcon } from '../ui/icons.js';
+import { showStatus, updateFaceCountDisplay } from '../utils/helpers.js';
+import { updateViewHelperLabels } from './camera.js';
+import { setModelOpacity } from './lighting.js';
+
+// Set up decoders for compressed GLB/glTF files
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('vendor/draco/');
+
+// Register BVH extensions for accelerated raycasting and spatial queries
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+// Late-bound reference to updateModelInfoDisplay (set by sidebar.js to avoid circular deps)
+let _updateModelInfoDisplay = null;
+export function setUpdateModelInfoDisplay(fn) {
+    _updateModelInfoDisplay = fn;
+}
+
+// One-shot completion hook for model setup. Used by the share/direct-link
+// loader in main.js to start the annotation import exactly when setup
+// (including the BVH build) finishes, instead of polling with a fixed
+// timeout that large models can exceed. Consumed on success; cleared on
+// setup failure so a stale hook can never fire against a later model.
+let _onModelSetupComplete = null;
+export function onceModelSetupComplete(callback) {
+    _onModelSetupComplete = callback;
+}
+
+// Late-bound hook fired once the async model hash is known. Used by session
+// persistence (set in main.js) to offer restoring an autosaved session for
+// this exact model. Fires on every model load; the consumer decides whether to
+// act (e.g. only into a fresh, share-free workspace).
+let _onModelHashReady = null;
+export function setModelHashReadyCallback(fn) {
+    _onModelHashReady = fn;
+}
+
+// Computes a SHA-256 hex digest of a File's bytes, used to bind exported
+// annotations to the exact model they target. Returns null on failure.
+async function computeModelHash(file) {
+    try {
+        const buf = await file.arrayBuffer();
+        const digest = await crypto.subtle.digest('SHA-256', buf);
+        return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (e) {
+        console.warn('Model hash computation failed:', e);
+        return null;
+    }
+}
+
+export function loadModel(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    // Store file for model export
+    state.loadedModelFiles = [file];
+
+    if (ext === 'obj') {
+        state.pendingObjFile = file;
+        dom.objDialogOverlay.classList.add('visible');
+        return;
+    }
+
+    if (ext === 'ply') {
+        state.pendingPlyFile = file;
+        dom.plyDialogOverlay.classList.add('visible');
+        return;
+    }
+
+    if (ext === 'stl') {
+        state.pendingStlFile = file;
+        dom.stlDialogOverlay.classList.add('visible');
+        return;
+    }
+
+    // GLB/GLTF path
+    dom.loading.classList.add('visible');
+    state.modelFileName = file.name;
+
+    // Reset model info for new model
+    state.modelInfo = { entries: [] };
+    if (_updateModelInfoDisplay) _updateModelInfoDisplay();
+
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    const url = URL.createObjectURL(file);
+
+    loader.load(
+        url,
+        (gltf) => {
+            console.log('GLB/GLTF file parsed, setting up model...');
+            // glTF/GLB spec mandates Y-up, no user choice needed
+            setupLoadedModel(gltf.scene, file.name, 'y-up');
+            URL.revokeObjectURL(url);
+        },
+        (progress) => {
+            // Progress callback for large files
+            if (progress.lengthComputable) {
+                const percent = Math.round((progress.loaded / progress.total) * 100);
+                console.log(`Loading: ${percent}%`);
+            }
+        },
+        (error) => {
+            console.error('Error loading model:', error);
+            dom.loading.classList.remove('visible');
+            showStatus('Error loading model!');
+        }
+    );
+}
+
+export function disposeObject3D(obj) {
+    if (!obj) return;
+    obj.traverse((child) => {
+        if (child.geometry) {
+            if (child.geometry.boundsTree) {
+                child.geometry.disposeBoundsTree();
+            }
+            child.geometry.dispose();
+        }
+        if (child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach(mat => {
+                if (mat.map) mat.map.dispose();
+                if (mat.normalMap) mat.normalMap.dispose();
+                if (mat.roughnessMap) mat.roughnessMap.dispose();
+                if (mat.metalnessMap) mat.metalnessMap.dispose();
+                if (mat.aoMap) mat.aoMap.dispose();
+                if (mat.emissiveMap) mat.emissiveMap.dispose();
+                mat.dispose();
+            });
+        }
+    });
+}
+
+export function setupLoadedModel(model, fileName, upAxis) {
+    try {
+        setupLoadedModelInternal(model, fileName, upAxis);
+    } catch (error) {
+        _onModelSetupComplete = null; // Setup failed — don't fire the hook later against a different model
+        console.error('Critical error during model setup:', error);
+        dom.loading.classList.remove('visible');
+        showStatus('Error setting up model - check console for details');
+    }
+}
+
+function setupLoadedModelInternal(model, fileName, upAxis) {
+    console.log(`setupLoadedModel: starting for "${fileName}" (upAxis: ${upAxis})`);
+    console.time('setupLoadedModel');
+    
+    // Store the model's original up-axis for coordinate transforms in export/import
+    state.modelUpAxis = upAxis || 'y-up';
+
+    // Compute a SHA-256 of the primary model file for annotation/model binding.
+    // Async: state.modelHash is populated when ready and read at export time.
+    // (Skipped in viewer mode, where loadedModelFiles is not populated.)
+    state.modelHash = null;
+    const primaryModelFile = state.loadedModelFiles && state.loadedModelFiles[0];
+    if (primaryModelFile) {
+        computeModelHash(primaryModelFile).then(h => {
+            state.modelHash = h;
+            if (_onModelHashReady) _onModelHashReady(h);
+        });
+    }
+    
+    // Reset flip state for new model
+    state.isFlipped = false;
+    if (dom.flipToggle) dom.flipToggle.classList.remove('active');
+
+    if (state.currentModel) {
+        // Dispose old model's GPU resources
+        disposeObject3D(state.currentModel);
+        state.scene.remove(state.currentModel);
+        // Dispose cloned materials stored for display mode switching
+        state.originalMaterials.forEach(mat => {
+            const mats = Array.isArray(mat) ? mat : [mat];
+            mats.forEach(m => m.dispose());
+        });
+    }
+
+    const grid = state.scene.getObjectByName('gridHelper');
+    if (grid) state.scene.remove(grid);
+
+    // If the model uses Z-up, rotate into Three.js Y-up space
+    if (state.modelUpAxis === 'z-up') {
+        model.rotation.x = -Math.PI / 2;
+        model.updateMatrixWorld(true);
+    }
+
+    state.currentModel = model;
+    state.scene.add(state.currentModel);
+    console.log('setupLoadedModel: model added to scene');
+
+    state.originalMaterials.clear();
+    state.modelMeshes = [];
+    state.hasVertexColors = false;
+    let totalFaces = 0;
+    let bvhBuildFailed = false;
+    
+    // First pass: count faces, store materials, check vertex colors
+    state.currentModel.traverse((child) => {
+        if (child.isMesh) {
+            // child.material may be a single Material or an array (multi-material
+            // meshes, e.g. OBJ objects with several usemtl groups). Clone
+            // element-wise so multi-atlas models survive setup.
+            state.originalMaterials.set(child.uuid, Array.isArray(child.material)
+                ? child.material.map(m => m.clone())
+                : child.material.clone());
+            state.modelMeshes.push(child);
+
+            // Check for vertex colors
+            if (child.geometry.attributes.color) {
+                state.hasVertexColors = true;
+            }
+
+            // Count faces
+            const geometry = child.geometry;
+            if (geometry.index) {
+                totalFaces += geometry.index.count / 3;
+            } else if (geometry.attributes.position) {
+                totalFaces += geometry.attributes.position.count / 3;
+            }
+        }
+    });
+    
+    console.log(`setupLoadedModel: traversal complete — ${state.modelMeshes.length} meshes, ${totalFaces.toLocaleString()} faces, vertexColors: ${state.hasVertexColors}`);
+    
+    // Check WebGL context before proceeding with expensive operations
+    const gl = state.renderer.getContext();
+    if (gl.isContextLost()) {
+        console.error('WebGL context was lost during model upload to GPU!');
+        dom.loading.classList.remove('visible');
+        showStatus('WebGL context lost — model too large for GPU.');
+        _onModelSetupComplete = null; // Failure: don't fire the hook against a later model
+        return;
+    }
+    console.log('setupLoadedModel: WebGL context OK after geometry upload');
+    
+    // Build BVH trees separately with error handling
+    // BVH is required for surface tools and efficient raycasting.
+    // DELIBERATE: the limit is disabled (Infinity). Without a BVH, every
+    // raycast (annotation clicks, surface brush, box placement) brute-forces
+    // all triangles, which is unusable at the 10M-face photogrammetry scale
+    // MeshNotes targets. The trade-off — a one-time build at load (seconds,
+    // behind the loading UI) plus index memory — is accepted; if a model is
+    // too large for the BVH it is too large for the GPU anyway, and the
+    // webglcontextlost handler reports that case. (Historical value: 5000000.)
+    const BVH_FACE_LIMIT = Infinity;
+    
+    if (totalFaces > BVH_FACE_LIMIT) {
+        console.warn(`Model has ${totalFaces.toLocaleString()} faces - skipping BVH for performance. Surface tools may be slower.`);
+        showStatus(`Large model loaded (${(totalFaces/1000000).toFixed(1)}M faces) - some tools may be slower`);
+        bvhBuildFailed = true;
+    } else {
+        for (const mesh of state.modelMeshes) {
+            try {
+                if (!mesh.geometry.boundsTree) {
+                    mesh.geometry.computeBoundsTree();
+                }
+            } catch (error) {
+                console.error('BVH computation failed for mesh:', mesh.name || 'unnamed', error);
+                bvhBuildFailed = true;
+                // Continue without BVH for this mesh - raycasting will still work, just slower
+            }
+        }
+        
+        if (bvhBuildFailed) {
+            console.warn('BVH build failed for one or more meshes. Raycasting will use standard (slower) method.');
+        }
+    }
+
+    // Record BVH availability for features that depend on fast raycasting (e.g. label occlusion)
+    state.bvhAvailable = !bvhBuildFailed;
+
+    // Display face count
+    updateFaceCountDisplay(totalFaces);
+    
+    // Validate model has actual geometry
+    if (state.modelMeshes.length === 0) {
+        console.error('Model contains no meshes!');
+        dom.loading.classList.remove('visible');
+        showStatus('Error: Model contains no renderable geometry');
+        _onModelSetupComplete = null; // Failure: don't fire the hook against a later model
+        return;
+    }
+
+    // Center and fit with validation
+    const box = new THREE.Box3().setFromObject(state.currentModel);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    
+    // Validate bounding box - can be empty or NaN for corrupt/empty models
+    if (box.isEmpty() || !isFinite(size.x) || !isFinite(size.y) || !isFinite(size.z)) {
+        console.error('Model has invalid bounding box:', { isEmpty: box.isEmpty(), size });
+        dom.loading.classList.remove('visible');
+        showStatus('Error: Model geometry is empty or invalid');
+        _onModelSetupComplete = null; // Failure: don't fire the hook against a later model
+        return;
+    }
+    
+    const maxDim = Math.max(size.x, size.y, size.z);
+    
+    // Guard against zero-size models (points only, or degenerate geometry)
+    if (maxDim === 0 || !isFinite(maxDim)) {
+        console.error('Model has zero or invalid size:', maxDim);
+        state.modelBoundingSize = 1; // Use fallback size
+    } else {
+        state.modelBoundingSize = maxDim;
+    }
+
+    state.currentModel.position.sub(center);
+    
+    // Update camera clipping planes based on model size
+    // Near: small fraction of model size (but not too small to avoid z-fighting)
+    // Far: large multiple of model size to ensure the entire scene is visible
+    const nearPlane = Math.max(0.001, state.modelBoundingSize * 0.0001);
+    const farPlane = state.modelBoundingSize * 100;
+    
+    state.perspectiveCamera.near = nearPlane;
+    state.perspectiveCamera.far = farPlane;
+    state.perspectiveCamera.updateProjectionMatrix();
+    
+    state.orthographicCamera.near = nearPlane;
+    state.orthographicCamera.far = farPlane;
+    state.orthographicCamera.updateProjectionMatrix();
+    
+    console.log(`setupLoadedModel: clipping planes set to near=${nearPlane.toFixed(4)}, far=${farPlane.toFixed(1)}`);
+    
+    state.camera.position.set(state.modelBoundingSize * 1.5, state.modelBoundingSize * 1.5, state.modelBoundingSize * 1.5);
+    state.controls.target.set(0, 0, 0);
+    state.controls.update();
+    
+    console.log(`Model loaded: ${state.modelMeshes.length} meshes, ${totalFaces.toLocaleString()} faces, size: ${state.modelBoundingSize.toFixed(3)}`);
+
+    // Enable tools
+    dom.btnTexture.disabled = false;
+    dom.btnPoint.disabled = false;
+    dom.btnLine.disabled = false;
+    dom.btnPolygon.disabled = false;
+    dom.btnSurface.disabled = false;
+    dom.btnBox.disabled = false;
+    dom.btnMeasure.disabled = false;
+    dom.btnScreenshot.disabled = false;
+    dom.btnExport.disabled = false;
+    // Enable share generate buttons (Share dialog itself is always accessible)
+    const shareGenBtn = document.getElementById('share-generate-btn');
+    const longtermGenBtn = document.getElementById('longterm-generate-btn');
+    if (shareGenBtn) shareGenBtn.disabled = false;
+    if (longtermGenBtn) longtermGenBtn.disabled = false;
+    state.displayMode = 'texture';
+    updateTextureButtonLabel();
+
+    // Apply display mode to fix vertex color multiplicative issue on first load
+    applyDisplayMode();
+
+    if (state.hasVertexColors) {
+        console.log('Vertex colors detected in model');
+    }
+
+    // Apply current opacity setting
+    if (state.modelOpacity < 1.0) {
+        setModelOpacity(parseInt(dom.opacitySlider.value));
+    }
+
+    // Final WebGL context check after all setup is complete
+    const glFinal = state.renderer.getContext();
+    if (glFinal.isContextLost()) {
+        console.error('WebGL context was lost during model setup! Model will not render.');
+        showStatus('WebGL context lost during setup — model may be too large for GPU.');
+    }
+    
+    dom.loading.classList.remove('visible');
+    showStatus(`Loaded: ${fileName}`);
+
+    // Update ViewHelper labels to match the model's coordinate system
+    updateViewHelperLabels();
+    
+    console.timeEnd('setupLoadedModel');
+    console.log(`setupLoadedModel: complete for "${fileName}"`);
+
+    // Notify the one-shot completion hook (share/direct-link annotation import)
+    if (_onModelSetupComplete) {
+        const cb = _onModelSetupComplete;
+        _onModelSetupComplete = null;
+        cb();
+    }
+}
+
+export function loadOBJModel(objFile, materialFiles, upAxis) {
+    // Store files for model export
+    state.loadedModelFiles = [objFile, ...(materialFiles || [])];
+
+    dom.loading.classList.add('visible');
+    state.modelFileName = objFile.name;
+
+    state.modelInfo = { entries: [] };
+    if (_updateModelInfoDisplay) _updateModelInfoDisplay();
+
+    const objUrl = URL.createObjectURL(objFile);
+
+    let mtlFile = null;
+    const textureFiles = [];
+
+    if (materialFiles && materialFiles.length > 0) {
+        for (const f of materialFiles) {
+            const fExt = f.name.split('.').pop().toLowerCase();
+            if (fExt === 'mtl') {
+                mtlFile = f;
+            } else {
+                textureFiles.push(f);
+            }
+        }
+    }
+
+    const textureUrlMap = {};
+    for (const tf of textureFiles) {
+        textureUrlMap[tf.name] = URL.createObjectURL(tf);
+    }
+
+    if (mtlFile) {
+        const mtlReader = new FileReader();
+        mtlReader.onload = (e) => {
+            const mtlText = e.target.result;
+
+            const loadingManager = new THREE.LoadingManager();
+            loadingManager.setURLModifier((url) => {
+                const fileName = url.split('/').pop().split('\\').pop();
+                if (textureUrlMap[fileName]) {
+                    return textureUrlMap[fileName];
+                }
+                return url;
+            });
+
+            const mtlLoader = new MTLLoader(loadingManager);
+            const materials = mtlLoader.parse(mtlText, '');
+            materials.preload();
+
+            const objLoader = new OBJLoader(loadingManager);
+            objLoader.setMaterials(materials);
+
+            objLoader.load(
+                objUrl,
+                (obj) => {
+                    console.log('OBJ file parsed (with materials), setting up model...');
+                    obj.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(mat => {
+                                if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+                            });
+                        }
+                    });
+                    setupLoadedModel(obj, objFile.name, upAxis);
+                    URL.revokeObjectURL(objUrl);
+                    Object.values(textureUrlMap).forEach(u => URL.revokeObjectURL(u));
+                },
+                (progress) => {
+                    if (progress.lengthComputable) {
+                        const percent = Math.round((progress.loaded / progress.total) * 100);
+                        console.log(`Loading OBJ: ${percent}%`);
+                    } else {
+                        console.log(`Loading OBJ: ${(progress.loaded / 1024 / 1024).toFixed(1)} MB loaded...`);
+                    }
+                },
+                (error) => {
+                    console.error('Error loading OBJ:', error);
+                    dom.loading.classList.remove('visible');
+                    showStatus('Error loading OBJ model!');
+                }
+            );
+        };
+        mtlReader.onerror = () => {
+            console.error('Error reading MTL file');
+            showStatus('MTL failed, loading OBJ without materials...');
+            loadOBJPlain(objUrl, textureUrlMap, objFile.name, upAxis);
+        };
+        mtlReader.readAsText(mtlFile);
+    } else if (textureFiles.length > 0) {
+        loadOBJPlain(objUrl, textureUrlMap, objFile.name, upAxis);
+    } else {
+        loadOBJPlain(objUrl, {}, objFile.name, upAxis);
+    }
+}
+
+export function loadOBJPlain(objUrl, textureUrlMap, fileName, upAxis) {
+    const objLoader = new OBJLoader();
+
+    objLoader.load(
+        objUrl,
+        (obj) => {
+            console.log('OBJ file parsed (plain), setting up model...');
+            const textureUrls = Object.values(textureUrlMap);
+            if (textureUrls.length > 0) {
+                const textureLoader = new THREE.TextureLoader();
+                const texture = textureLoader.load(textureUrls[0]);
+                texture.colorSpace = THREE.SRGBColorSpace;
+
+                obj.traverse((child) => {
+                    if (child.isMesh) {
+                        child.material = new THREE.MeshStandardMaterial({
+                            map: texture,
+                            roughness: 0.7,
+                            metalness: 0.0
+                        });
+                    }
+                });
+            }
+
+            setupLoadedModel(obj, fileName, upAxis);
+            URL.revokeObjectURL(objUrl);
+            Object.values(textureUrlMap).forEach(u => URL.revokeObjectURL(u));
+        },
+        (progress) => {
+            if (progress.lengthComputable) {
+                const percent = Math.round((progress.loaded / progress.total) * 100);
+                console.log(`Loading OBJ: ${percent}%`);
+            } else {
+                console.log(`Loading OBJ: ${(progress.loaded / 1024 / 1024).toFixed(1)} MB loaded...`);
+            }
+        },
+        (error) => {
+            console.error('Error loading OBJ:', error);
+            dom.loading.classList.remove('visible');
+            showStatus('Error loading OBJ model!');
+        }
+    );
+}
+
+export function loadPLYModel(plyFile, textureFile, upAxis) {
+    // Store files for model export
+    state.loadedModelFiles = [plyFile, ...(textureFile ? [textureFile] : [])];
+
+    dom.loading.classList.add('visible');
+    state.modelFileName = plyFile.name;
+    state.modelInfo = { entries: [] };
+    if (_updateModelInfoDisplay) _updateModelInfoDisplay();
+
+    const loader = new PLYLoader();
+    const url = URL.createObjectURL(plyFile);
+
+    loader.load(
+        url,
+        (geometry) => {
+            geometry.computeVertexNormals();
+
+            const hasColors = !!geometry.attributes.color;
+            const hasUVs = !!geometry.attributes.uv;
+
+            let material;
+
+            if (textureFile && hasUVs) {
+                const texUrl = URL.createObjectURL(textureFile);
+                const textureLoader = new THREE.TextureLoader();
+                const texture = textureLoader.load(texUrl, () => {
+                    URL.revokeObjectURL(texUrl);
+                });
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.flipY = true;
+
+                material = new THREE.MeshStandardMaterial({
+                    map: texture,
+                    roughness: 0.7,
+                    metalness: 0.0,
+                    side: THREE.DoubleSide
+                });
+            } else if (textureFile && !hasUVs) {
+                showStatus('Warning: PLY has no UV coordinates — texture ignored');
+                material = new THREE.MeshStandardMaterial({
+                    roughness: 0.7,
+                    metalness: 0.0,
+                    vertexColors: hasColors,
+                    color: hasColors ? 0xffffff : 0xcccccc,
+                    side: THREE.DoubleSide
+                });
+            } else {
+                material = new THREE.MeshStandardMaterial({
+                    roughness: 0.7,
+                    metalness: 0.0,
+                    vertexColors: hasColors,
+                    color: hasColors ? 0xffffff : 0xcccccc,
+                    side: THREE.DoubleSide
+                });
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            const group = new THREE.Group();
+            group.add(mesh);
+
+            setupLoadedModel(group, plyFile.name, upAxis);
+            URL.revokeObjectURL(url);
+        },
+        undefined,
+        (error) => {
+            console.error('Error loading PLY:', error);
+            dom.loading.classList.remove('visible');
+            showStatus('Error loading PLY model!');
+        }
+    );
+}
+
+export function loadSTLModel(stlFile, upAxis) {
+    // Store file for model export
+    state.loadedModelFiles = [stlFile];
+
+    dom.loading.classList.add('visible');
+    state.modelFileName = stlFile.name;
+    state.modelInfo = { entries: [] };
+    if (_updateModelInfoDisplay) _updateModelInfoDisplay();
+
+    const loader = new STLLoader();
+    const url = URL.createObjectURL(stlFile);
+
+    loader.load(
+        url,
+        (geometry) => {
+            geometry.computeVertexNormals();
+
+            const hasColors = !!geometry.attributes.color;
+
+            const material = new THREE.MeshStandardMaterial({
+                roughness: 0.7,
+                metalness: 0.0,
+                vertexColors: hasColors,
+                color: hasColors ? 0xffffff : 0xcccccc,
+                side: THREE.DoubleSide
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+            const group = new THREE.Group();
+            group.add(mesh);
+
+            setupLoadedModel(group, stlFile.name, upAxis);
+            URL.revokeObjectURL(url);
+        },
+        undefined,
+        (error) => {
+            console.error('Error loading STL:', error);
+            dom.loading.classList.remove('visible');
+            showStatus('Error loading STL model!');
+        }
+    );
+}
+
+export function toggleTexture() {
+    if (!state.currentModel) return;
+
+    if (state.displayMode === 'texture') {
+        state.displayMode = state.hasVertexColors ? 'vertexColors' : 'mesh';
+    } else if (state.displayMode === 'vertexColors') {
+        state.displayMode = 'mesh';
+    } else if (state.displayMode === 'mesh') {
+        state.displayMode = 'wireframe';
+    } else {
+        state.displayMode = 'texture';
+    }
+
+    applyDisplayMode();
+    updateTextureButtonLabel();
+
+    const modeLabels = {
+        'texture': 'Texture',
+        'vertexColors': 'Vertex Colors',
+        'mesh': 'Mesh',
+        'wireframe': 'Wireframe'
+    };
+    showStatus(`Display: ${modeLabels[state.displayMode]}`);
+}
+
+export function applyDisplayMode() {
+    if (!state.currentModel) return;
+
+    state.currentModel.traverse((child) => {
+        if (child.isMesh) {
+            const original = state.originalMaterials.get(child.uuid);
+
+            // Dispose the material(s) about to be replaced. Materials only —
+            // texture maps are shared by reference with the originalMaterials
+            // snapshot (clone() shares maps) and are disposed on model swap,
+            // so they must NOT be disposed here.
+            const disposeCurrent = () => {
+                const old = Array.isArray(child.material) ? child.material : [child.material];
+                old.forEach(m => m.dispose());
+            };
+
+            if (state.displayMode === 'texture') {
+                if (original) {
+                    disposeCurrent();
+                    // Original may be a material array (multi-material mesh).
+                    if (Array.isArray(original)) {
+                        child.material = original.map(m => {
+                            const c = m.clone();
+                            c.vertexColors = false;
+                            return c;
+                        });
+                    } else {
+                        child.material = original.clone();
+                        child.material.vertexColors = false;
+                    }
+                }
+            } else if (state.displayMode === 'vertexColors') {
+                disposeCurrent();
+                child.material = new THREE.MeshStandardMaterial({
+                    vertexColors: true,
+                    roughness: 0.7,
+                    metalness: 0.0
+                });
+            } else if (state.displayMode === 'wireframe') {
+                disposeCurrent();
+                child.material = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(state.wireframeColor),
+                    wireframe: true
+                });
+            } else {
+                // Mesh mode (solid color, no texture)
+                disposeCurrent();
+                child.material = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(state.meshColor),
+                    roughness: 0.7,
+                    metalness: 0.0
+                });
+            }
+
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(mat => {
+                mat.transparent = true;
+                mat.opacity = state.modelOpacity;
+                mat.depthWrite = state.modelOpacity > 0.9;
+            });
+        }
+    });
+}
+
+export function updateTextureButtonLabel() {
+    const labels = {
+        'texture': { icon: 'texture', text: 'Texture' },
+        'vertexColors': { icon: 'color', text: 'Colors' },
+        'mesh': { icon: 'mesh', text: 'Mesh' },
+        'wireframe': { icon: 'wireframe', text: 'Wireframe' }
+    };
+    const mode = labels[state.displayMode] || labels['texture'];
+    const svg = getIcon(mode.icon);
+    dom.btnTexture.innerHTML = (svg ? `<span class="btn-texture-icon">${svg}</span>` : '') + `<span class="btn-texture-label">${mode.text}</span>`;
+    // All display modes use default blue button background
+    dom.btnTexture.classList.remove('active');
+}
