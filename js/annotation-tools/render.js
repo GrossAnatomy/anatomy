@@ -39,6 +39,29 @@ export function setRenderCallbacks({
 
 
 // ============================================================
+// POINT LABEL SETTINGS
+// ============================================================
+
+/*
+ * Label을 화면 가장자리에서 얼마나 안쪽에 둘지.
+ *
+ * 40  = 가장자리에 매우 가까움
+ * 70  = 권장
+ * 100 = 조금 더 안쪽
+ */
+const SCREEN_EDGE_MARGIN = 70;
+
+
+/*
+ * Point/anchor에서 바로 label까지 가지 않고
+ * 약간의 여유 공간을 둘 때 사용할 수 있는 값.
+ *
+ * 현재는 직선으로 연결하므로 0.
+ */
+const POINT_START_MARGIN = 0;
+
+
+// ============================================================
 // Convert screen pixel coordinates to world coordinates
 // at the same projected depth as the annotation point
 // ============================================================
@@ -223,6 +246,203 @@ function getNearestScreenEdge(
 
 
 // ============================================================
+// Common: anchor world position -> label world position
+// pushed toward the nearest screen edge (left/right/top/bottom)
+//
+// This is now shared by ALL annotation types (point, line,
+// polygon, surface, box) so labels are never pushed in a
+// single fixed world-space direction.
+// ============================================================
+
+function computeEdgeLabelPosition(
+    anchorPosition
+) {
+
+    const edgeInfo =
+        getNearestScreenEdge(
+            anchorPosition
+        );
+
+
+    const {
+        width,
+        height,
+        ndcZ
+    } =
+        edgeInfo;
+
+
+    let targetX =
+        edgeInfo.x;
+
+
+    let targetY =
+        edgeInfo.y;
+
+
+    if (
+        edgeInfo.edge ===
+        'left'
+    ) {
+
+        targetX =
+            SCREEN_EDGE_MARGIN;
+
+    } else if (
+        edgeInfo.edge ===
+        'right'
+    ) {
+
+        targetX =
+            width -
+            SCREEN_EDGE_MARGIN;
+
+    } else if (
+        edgeInfo.edge ===
+        'top'
+    ) {
+
+        targetY =
+            SCREEN_EDGE_MARGIN;
+
+    } else if (
+        edgeInfo.edge ===
+        'bottom'
+    ) {
+
+        targetY =
+            height -
+            SCREEN_EDGE_MARGIN;
+    }
+
+
+    return screenPixelToWorld(
+        targetX,
+        targetY,
+        ndcZ,
+        width,
+        height
+    );
+}
+
+
+// ============================================================
+// Common: build the leader line connecting an anchor point
+// to its label position (straight segment, always-on-top)
+// ============================================================
+
+function createLeaderLine(
+    anchorPosition,
+    labelPosition,
+    color,
+    groupOpacity,
+    width,
+    height
+) {
+
+    let leaderStart =
+        anchorPosition.clone();
+
+
+    /*
+     * Normally POINT_START_MARGIN = 0,
+     * so the line starts exactly from the anchor point.
+     */
+    if (
+        POINT_START_MARGIN >
+        0
+    ) {
+
+        const direction =
+            new THREE.Vector3()
+                .subVectors(
+                    labelPosition,
+                    anchorPosition
+                );
+
+
+        if (
+            direction.lengthSq() >
+            1e-12
+        ) {
+
+            direction.normalize();
+
+
+            leaderStart =
+                anchorPosition
+                    .clone()
+                    .add(
+                        direction
+                            .multiplyScalar(
+                                POINT_START_MARGIN
+                            )
+                    );
+        }
+    }
+
+
+    const leaderGeometry =
+        new LineGeometry();
+
+
+    leaderGeometry.setPositions([
+
+        leaderStart.x,
+        leaderStart.y,
+        leaderStart.z,
+
+        labelPosition.x,
+        labelPosition.y,
+        labelPosition.z
+    ]);
+
+
+    const leaderMaterial =
+        new LineMaterial({
+
+            color:
+                color,
+
+            linewidth:
+                3,
+
+            transparent:
+                groupOpacity < 1,
+
+            opacity:
+                groupOpacity,
+
+            resolution:
+                new THREE.Vector2(
+                    width,
+                    height
+                ),
+
+            /*
+             * Always show the leader.
+             */
+            depthTest:
+                false
+        });
+
+
+    const leader =
+        new Line2(
+            leaderGeometry,
+            leaderMaterial
+        );
+
+
+    leader.renderOrder =
+        9998;
+
+
+    return leader;
+}
+
+
+// ============================================================
 // Render Annotations
 // ============================================================
 
@@ -322,36 +542,16 @@ export function renderAnnotations() {
         );
 
 
-    const labelOffset =
-        Math.pow(
-            maxDim,
-            0.8
-        ) * 0.012;
+    // --------------------------------------------------------
+    // Viewport size (shared by all leader lines this pass)
+    // --------------------------------------------------------
+
+    const viewportWidth =
+        getViewportWidth();
 
 
-    // ========================================================
-    // POINT LABEL SETTINGS
-    // ========================================================
-
-    /*
-     * Label을 화면 가장자리에서 얼마나 안쪽에 둘지.
-     *
-     * 40  = 가장자리에 매우 가까움
-     * 70  = 권장
-     * 100 = 조금 더 안쪽
-     */
-    const SCREEN_EDGE_MARGIN =
-        70;
-
-
-    /*
-     * Point에서 바로 label까지 가지 않고
-     * 약간의 여유 공간을 둘 때 사용할 수 있는 값.
-     *
-     * 현재는 직선으로 연결하므로 0.
-     */
-    const POINT_START_MARGIN =
-        0;
+    const viewportHeight =
+        getViewportHeight();
 
 
     // --------------------------------------------------------
@@ -492,152 +692,13 @@ export function renderAnnotations() {
 
 
                 // =============================================
-                // Choose nearest screen border
-                // =============================================
-
-                const edgeInfo =
-                    getNearestScreenEdge(
-                        pointPosition
-                    );
-
-
-                const {
-                    width,
-                    height,
-                    ndcZ
-                } =
-                    edgeInfo;
-
-
-                let targetX =
-                    edgeInfo.x;
-
-
-                let targetY =
-                    edgeInfo.y;
-
-
-                // =============================================
-                // Set target position according to
-                // LEFT / RIGHT / TOP / BOTTOM
-                // =============================================
-
-                if (
-                    edgeInfo.edge ===
-                    'left'
-                ) {
-
-                    targetX =
-                        SCREEN_EDGE_MARGIN;
-
-
-                    targetY =
-                        edgeInfo.y;
-                }
-
-
-                else if (
-                    edgeInfo.edge ===
-                    'right'
-                ) {
-
-                    targetX =
-                        width -
-                        SCREEN_EDGE_MARGIN;
-
-
-                    targetY =
-                        edgeInfo.y;
-                }
-
-
-                else if (
-                    edgeInfo.edge ===
-                    'top'
-                ) {
-
-                    targetX =
-                        edgeInfo.x;
-
-
-                    targetY =
-                        SCREEN_EDGE_MARGIN;
-                }
-
-
-                else if (
-                    edgeInfo.edge ===
-                    'bottom'
-                ) {
-
-                    targetX =
-                        edgeInfo.x;
-
-
-                    targetY =
-                        height -
-                        SCREEN_EDGE_MARGIN;
-                }
-
-
-                // =============================================
-                // Screen location -> world label position
+                // Label position: nearest screen edge
                 // =============================================
 
                 labelPosition =
-                    screenPixelToWorld(
-                        targetX,
-                        targetY,
-                        ndcZ,
-                        width,
-                        height
+                    computeEdgeLabelPosition(
+                        pointPosition
                     );
-
-
-                // =============================================
-                // Leader start
-                // =============================================
-
-                let leaderStart =
-                    pointPosition.clone();
-
-
-                /*
-                 * Normally POINT_START_MARGIN = 0,
-                 * so the line starts exactly from clicked point.
-                 */
-                if (
-                    POINT_START_MARGIN >
-                    0
-                ) {
-
-                    const direction =
-                        new THREE.Vector3()
-                            .subVectors(
-                                labelPosition,
-                                pointPosition
-                            );
-
-
-                    if (
-                        direction.lengthSq() >
-                        1e-12
-                    ) {
-
-                        direction.normalize();
-
-
-                        leaderStart =
-                            pointPosition
-                                .clone()
-                                .add(
-                                    direction
-                                        .multiplyScalar(
-                                            POINT_START_MARGIN
-                                        )
-                                );
-                    }
-                }
 
 
                 // =============================================
@@ -648,64 +709,19 @@ export function renderAnnotations() {
                 // POINT ----------------> nearest screen edge
                 // =============================================
 
-                const leaderGeometry =
-                    new LineGeometry();
-
-
-                leaderGeometry.setPositions([
-
-                    leaderStart.x,
-                    leaderStart.y,
-                    leaderStart.z,
-
-                    labelPosition.x,
-                    labelPosition.y,
-                    labelPosition.z
-                ]);
-
-
-                const leaderMaterial =
-                    new LineMaterial({
-
-                        color:
-                            color,
-
-                        linewidth:
-                            3,
-
-                        transparent:
-                            groupOpacity < 1,
-
-                        opacity:
-                            groupOpacity,
-
-                        resolution:
-                            new THREE.Vector2(
-                                width,
-                                height
-                            ),
-
-                        /*
-                         * Always show the leader.
-                         */
-                        depthTest:
-                            false
-                    });
-
-
                 const leader =
-                    new Line2(
-                        leaderGeometry,
-                        leaderMaterial
+                    createLeaderLine(
+                        pointPosition,
+                        labelPosition,
+                        color,
+                        groupOpacity,
+                        viewportWidth,
+                        viewportHeight
                     );
 
 
                 leader.userData.annotationId =
                     ann.id;
-
-
-                leader.renderOrder =
-                    9998;
 
 
                 state.annotationObjects.add(
@@ -845,8 +861,8 @@ export function renderAnnotations() {
 
                         resolution:
                             new THREE.Vector2(
-                                getViewportWidth(),
-                                getViewportHeight()
+                                viewportWidth,
+                                viewportHeight
                             ),
 
                         polygonOffset:
@@ -960,8 +976,13 @@ export function renderAnnotations() {
 
 
                 // ---------------------------------------------
-                // Polygon label
+                // Label anchor: centroid for polygon,
+                // first point for line
                 // ---------------------------------------------
+
+                let anchorPosition =
+                    null;
+
 
                 if (
                     ann.type === 'polygon' &&
@@ -1006,22 +1027,7 @@ export function renderAnnotations() {
                         );
 
 
-                    labelPosition =
-                        new THREE.Vector3(
-
-                            centroid.x /
-                            ann.points.length,
-
-                            centroid.y /
-                            ann.points.length +
-                            labelOffset,
-
-                            centroid.z /
-                            ann.points.length
-                        );
-
-
-                    occlusionCheckPos =
+                    anchorPosition =
                         new THREE.Vector3(
 
                             centroid.x /
@@ -1044,24 +1050,51 @@ export function renderAnnotations() {
                         );
 
 
-                    labelPosition =
-                        new THREE.Vector3(
-
-                            lp.x,
-
-                            lp.y +
-                            labelOffset,
-
-                            lp.z
-                        );
-
-
-                    occlusionCheckPos =
+                    anchorPosition =
                         new THREE.Vector3(
                             lp.x,
                             lp.y,
                             lp.z
                         );
+                }
+
+
+                // ---------------------------------------------
+                // Label position: nearest screen edge
+                // ---------------------------------------------
+
+                if (
+                    anchorPosition
+                ) {
+
+                    labelPosition =
+                        computeEdgeLabelPosition(
+                            anchorPosition
+                        );
+
+
+                    occlusionCheckPos =
+                        anchorPosition;
+
+
+                    const leader =
+                        createLeaderLine(
+                            anchorPosition,
+                            labelPosition,
+                            color,
+                            groupOpacity,
+                            viewportWidth,
+                            viewportHeight
+                        );
+
+
+                    leader.userData.annotationId =
+                        ann.id;
+
+
+                    state.annotationObjects.add(
+                        leader
+                    );
                 }
             }
 
@@ -1108,24 +1141,42 @@ export function renderAnnotations() {
                         );
 
 
-                    labelPosition =
-                        new THREE.Vector3(
-
-                            sp.x,
-
-                            sp.y +
-                            labelOffset,
-
-                            sp.z
-                        );
-
-
-                    occlusionCheckPos =
+                    const anchorPosition =
                         new THREE.Vector3(
                             sp.x,
                             sp.y,
                             sp.z
                         );
+
+
+                    labelPosition =
+                        computeEdgeLabelPosition(
+                            anchorPosition
+                        );
+
+
+                    occlusionCheckPos =
+                        anchorPosition;
+
+
+                    const leader =
+                        createLeaderLine(
+                            anchorPosition,
+                            labelPosition,
+                            color,
+                            groupOpacity,
+                            viewportWidth,
+                            viewportHeight
+                        );
+
+
+                    leader.userData.annotationId =
+                        ann.id;
+
+
+                    state.annotationObjects.add(
+                        leader
+                    );
                 }
             }
 
@@ -1173,44 +1224,42 @@ export function renderAnnotations() {
                     );
 
 
-                const size =
-                    ann.boxData.size;
-
-
-                const yOffset =
-                    state.isFlipped
-
-                        ? -(
-                            size.y /
-                            2 +
-                            labelOffset
-                        )
-
-                        : (
-                            size.y /
-                            2 +
-                            labelOffset
-                        );
-
-
-                labelPosition =
-                    new THREE.Vector3(
-
-                        bc.x,
-
-                        bc.y +
-                        yOffset,
-
-                        bc.z
-                    );
-
-
-                occlusionCheckPos =
+                const anchorPosition =
                     new THREE.Vector3(
                         bc.x,
                         bc.y,
                         bc.z
                     );
+
+
+                labelPosition =
+                    computeEdgeLabelPosition(
+                        anchorPosition
+                    );
+
+
+                occlusionCheckPos =
+                    anchorPosition;
+
+
+                const leader =
+                    createLeaderLine(
+                        anchorPosition,
+                        labelPosition,
+                        color,
+                        groupOpacity,
+                        viewportWidth,
+                        viewportHeight
+                    );
+
+
+                leader.userData.annotationId =
+                    ann.id;
+
+
+                state.annotationObjects.add(
+                    leader
+                );
             }
 
 
