@@ -1,5 +1,7 @@
 // js/annotation-tools/render.js
 
+console.log("MODIFIED render.js LOADED - edge-label version");
+
 import * as THREE from 'three';
 
 import { Line2 } from 'three/addons/lines/Line2.js';
