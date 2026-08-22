@@ -39,106 +39,50 @@ export function setRenderCallbacks({
 
 
 // ============================================================
-// Reusable raycaster for silhouette search
+// Convert screen pixel coordinates to world coordinates
+// at the same projected depth as the annotation point
 // ============================================================
 
-const _leaderRaycaster =
-    new THREE.Raycaster();
-
-
-const _leaderMouse =
-    new THREE.Vector2();
-
-
-// ============================================================
-// Test whether a screen position intersects the model
-// ============================================================
-
-function screenPixelHitsModel(
+function screenPixelToWorld(
     pixelX,
     pixelY,
+    ndcZ,
     width,
     height
 ) {
 
-    if (
-        !state.camera ||
-        !state.currentModel ||
-        width <= 0 ||
-        height <= 0
-    ) {
-        return false;
-    }
-
-
-    // --------------------------------------------------------
-    // Screen pixel -> Normalized Device Coordinates
-    // --------------------------------------------------------
-
-    _leaderMouse.set(
-
+    const ndcX =
         (
             pixelX /
             width
-        ) * 2 - 1,
+        ) * 2 - 1;
 
+
+    const ndcY =
         -(
             (
                 pixelY /
                 height
             ) * 2 - 1
-        )
-    );
+        );
 
 
-    _leaderRaycaster.setFromCamera(
-        _leaderMouse,
-        state.camera
-    );
-
-
-    /*
-     * Use modelMeshes where possible.
-     *
-     * This is more direct than intersecting annotation
-     * objects or other scene objects.
-     */
-    let hits;
-
-
-    if (
-        state.modelMeshes &&
-        state.modelMeshes.length > 0
-    ) {
-
-        hits =
-            _leaderRaycaster.intersectObjects(
-                state.modelMeshes,
-                false
-            );
-
-    } else {
-
-        hits =
-            _leaderRaycaster.intersectObject(
-                state.currentModel,
-                true
-            );
-    }
-
-
-    return (
-        hits.length >
-        0
-    );
+    return new THREE.Vector3(
+        ndcX,
+        ndcY,
+        ndcZ
+    )
+        .unproject(
+            state.camera
+        );
 }
 
 
 // ============================================================
-// Find shortest screen-space route from point to model exterior
+// Choose nearest of four screen borders
 // ============================================================
 
-function findNearestOutsideDirection(
+function getNearestScreenEdge(
     pointPosition
 ) {
 
@@ -157,7 +101,7 @@ function findNearestOutsideDirection(
 
 
     // --------------------------------------------------------
-    // Project selected 3D point onto current screen
+    // 3D point -> screen NDC
     // --------------------------------------------------------
 
     const projected =
@@ -168,349 +112,113 @@ function findNearestOutsideDirection(
             );
 
 
-    const startX =
+    // --------------------------------------------------------
+    // NDC -> screen pixels
+    // --------------------------------------------------------
+
+    const x =
         (
-            projected.x +
-            1
+            projected.x + 1
         )
-        *
-        0.5
-        *
-        width;
+        * 0.5
+        * width;
 
 
-    const startY =
+    const y =
         (
-            1 -
-            projected.y
+            1 - projected.y
         )
-        *
-        0.5
-        *
-        height;
+        * 0.5
+        * height;
 
 
-    // ========================================================
-    // Search parameters
-    // ========================================================
+    // --------------------------------------------------------
+    // Distance from point to each of four screen borders
+    // --------------------------------------------------------
 
-    /*
-     * 72 directions =
-     * one direction every 5 degrees.
-     *
-     * More directions = more precise silhouette search.
-     */
-    const DIRECTION_COUNT =
-        72;
+    const distances = {
 
+        left:
+            x,
 
-    /*
-     * Examine the screen every 4 pixels.
-     */
-    const STEP_PX =
-        4;
+        right:
+            width - x,
 
+        top:
+            y,
 
-    /*
-     * Once background is encountered, require this
-     * many consecutive background samples before
-     * accepting it as the real outer silhouette.
-     *
-     * 10 × 4 px = 40 px background.
-     *
-     * This helps prevent anatomical holes from being
-     * interpreted as the outside of the entire model.
-     */
-    const CLEAR_SAMPLES =
-        10;
+        bottom:
+            height - y
+    };
 
 
-    /*
-     * Do not search indefinitely.
-     */
-    const maxDistance =
-        Math.sqrt(
-            width * width +
-            height * height
-        );
+    // --------------------------------------------------------
+    // Find nearest screen edge
+    // --------------------------------------------------------
+
+    let nearest =
+        'left';
 
 
-    let bestDirection =
-        null;
+    let minDistance =
+        distances.left;
 
 
-    let bestExitDistance =
-        Infinity;
-
-
-    // ========================================================
-    // Examine every radial screen direction
-    // ========================================================
-
-    for (
-        let i = 0;
-        i < DIRECTION_COUNT;
-        i++
+    if (
+        distances.right <
+        minDistance
     ) {
 
-        const angle =
-            (
-                i /
-                DIRECTION_COUNT
-            )
-            *
-            Math.PI
-            *
-            2;
+        nearest =
+            'right';
 
-
-        const dx =
-            Math.cos(
-                angle
-            );
-
-
-        const dy =
-            Math.sin(
-                angle
-            );
-
-
-        let firstOutsideDistance =
-            null;
-
-
-        let consecutiveOutside =
-            0;
-
-
-        // ----------------------------------------------------
-        // Walk outward from selected point
-        // ----------------------------------------------------
-
-        for (
-            let distance = STEP_PX;
-            distance <= maxDistance;
-            distance += STEP_PX
-        ) {
-
-            const x =
-                startX +
-                dx *
-                distance;
-
-
-            const y =
-                startY +
-                dy *
-                distance;
-
-
-            // ------------------------------------------------
-            // Screen edge = definitely outside model
-            // ------------------------------------------------
-
-            if (
-                x < 0 ||
-                x >= width ||
-                y < 0 ||
-                y >= height
-            ) {
-
-                if (
-                    firstOutsideDistance !== null &&
-                    firstOutsideDistance <
-                    bestExitDistance
-                ) {
-
-                    bestExitDistance =
-                        firstOutsideDistance;
-
-
-                    bestDirection = {
-                        dx,
-                        dy
-                    };
-                }
-
-
-                break;
-            }
-
-
-            // ------------------------------------------------
-            // Does this screen pixel still hit anatomy?
-            // ------------------------------------------------
-
-            const hitsModel =
-                screenPixelHitsModel(
-                    x,
-                    y,
-                    width,
-                    height
-                );
-
-
-            if (
-                hitsModel
-            ) {
-
-                /*
-                 * We entered anatomy again.
-                 *
-                 * Therefore any preceding empty section was
-                 * probably an internal hole/gap rather than
-                 * the true external silhouette.
-                 */
-                firstOutsideDistance =
-                    null;
-
-
-                consecutiveOutside =
-                    0;
-
-            } else {
-
-                if (
-                    firstOutsideDistance ===
-                    null
-                ) {
-
-                    firstOutsideDistance =
-                        distance;
-                }
-
-
-                consecutiveOutside++;
-
-
-                // --------------------------------------------
-                // Enough continuous background:
-                // accept this as actual exterior
-                // --------------------------------------------
-
-                if (
-                    consecutiveOutside >=
-                    CLEAR_SAMPLES
-                ) {
-
-                    if (
-                        firstOutsideDistance <
-                        bestExitDistance
-                    ) {
-
-                        bestExitDistance =
-                            firstOutsideDistance;
-
-
-                        bestDirection = {
-                            dx,
-                            dy
-                        };
-                    }
-
-
-                    break;
-                }
-            }
-        }
+        minDistance =
+            distances.right;
     }
 
 
-    // ========================================================
-    // Fallback
-    // ========================================================
-
     if (
-        !bestDirection ||
-        !Number.isFinite(
-            bestExitDistance
-        )
+        distances.top <
+        minDistance
     ) {
 
-        /*
-         * Only used if silhouette search completely fails.
-         *
-         * Choose screen-right.
-         */
-        bestDirection = {
-            dx: 1,
-            dy: 0
-        };
+        nearest =
+            'top';
+
+        minDistance =
+            distances.top;
+    }
 
 
-        bestExitDistance =
-            100;
+    if (
+        distances.bottom <
+        minDistance
+    ) {
+
+        nearest =
+            'bottom';
+
+        minDistance =
+            distances.bottom;
     }
 
 
     return {
 
-        dx:
-            bestDirection.dx,
+        edge:
+            nearest,
 
-        dy:
-            bestDirection.dy,
+        x,
 
-        distance:
-            bestExitDistance,
-
-        startX,
-        startY,
+        y,
 
         ndcZ:
             projected.z,
 
         width,
+
         height
     };
-}
-
-
-// ============================================================
-// Screen pixel position -> world position at specified NDC depth
-// ============================================================
-
-function screenPixelToWorld(
-    pixelX,
-    pixelY,
-    ndcZ,
-    width,
-    height
-) {
-
-    const ndcX =
-        (
-            pixelX /
-            width
-        )
-        *
-        2
-        -
-        1;
-
-
-    const ndcY =
-        -(
-            (
-                pixelY /
-                height
-            )
-            *
-            2
-            -
-            1
-        );
-
-
-    return new THREE.Vector3(
-        ndcX,
-        ndcY,
-        ndcZ
-    )
-        .unproject(
-            state.camera
-        );
 }
 
 
@@ -618,31 +326,32 @@ export function renderAnnotations() {
         Math.pow(
             maxDim,
             0.8
-        )
-        *
-        0.012;
+        ) * 0.012;
 
 
     // ========================================================
-    // Point leader settings
+    // POINT LABEL SETTINGS
     // ========================================================
 
     /*
-     * Distance after actual silhouette before the
-     * visible external part of the leader continues.
-     */
-    const OUTSIDE_MARGIN_PX =
-        12;
-
-
-    /*
-     * Additional distance from exterior silhouette
-     * to label center.
+     * Label을 화면 가장자리에서 얼마나 안쪽에 둘지.
      *
-     * Increase this if label should be farther away.
+     * 40  = 가장자리에 매우 가까움
+     * 70  = 권장
+     * 100 = 조금 더 안쪽
      */
-    const LABEL_EXTENSION_PX =
-        120;
+    const SCREEN_EDGE_MARGIN =
+        70;
+
+
+    /*
+     * Point에서 바로 label까지 가지 않고
+     * 약간의 여유 공간을 둘 때 사용할 수 있는 값.
+     *
+     * 현재는 직선으로 연결하므로 0.
+     */
+    const POINT_START_MARGIN =
+        0;
 
 
     // --------------------------------------------------------
@@ -733,8 +442,7 @@ export function renderAnnotations() {
                         color,
 
                         transparent:
-                            groupOpacity <
-                            1,
+                            groupOpacity < 1,
 
                         opacity:
                             groupOpacity
@@ -784,111 +492,160 @@ export function renderAnnotations() {
 
 
                 // =============================================
-                // Find actual shortest route to model exterior
+                // Choose nearest screen border
                 // =============================================
 
-                const exitInfo =
-                    findNearestOutsideDirection(
+                const edgeInfo =
+                    getNearestScreenEdge(
                         pointPosition
                     );
 
 
                 const {
                     width,
-                    height
+                    height,
+                    ndcZ
                 } =
-                    exitInfo;
+                    edgeInfo;
 
 
-                // ---------------------------------------------
-                // Actual external silhouette position
-                // ---------------------------------------------
-
-                const silhouetteX =
-                    exitInfo.startX +
-                    exitInfo.dx *
-                    exitInfo.distance;
+                let targetX =
+                    edgeInfo.x;
 
 
-                const silhouetteY =
-                    exitInfo.startY +
-                    exitInfo.dy *
-                    exitInfo.distance;
-
-
-                // ---------------------------------------------
-                // Move a little beyond silhouette
-                // ---------------------------------------------
-
-                const outsideX =
-                    silhouetteX +
-                    exitInfo.dx *
-                    OUTSIDE_MARGIN_PX;
-
-
-                const outsideY =
-                    silhouetteY +
-                    exitInfo.dy *
-                    OUTSIDE_MARGIN_PX;
-
-
-                // ---------------------------------------------
-                // Label position further outward
-                // ---------------------------------------------
-
-                const labelX =
-                    outsideX +
-                    exitInfo.dx *
-                    LABEL_EXTENSION_PX;
-
-
-                const labelY =
-                    outsideY +
-                    exitInfo.dy *
-                    LABEL_EXTENSION_PX;
+                let targetY =
+                    edgeInfo.y;
 
 
                 // =============================================
-                // Convert screen locations to world coordinates
+                // Set target position according to
+                // LEFT / RIGHT / TOP / BOTTOM
                 // =============================================
 
-                const silhouettePosition =
-                    screenPixelToWorld(
-                        silhouetteX,
-                        silhouetteY,
-                        exitInfo.ndcZ,
-                        width,
-                        height
-                    );
+                if (
+                    edgeInfo.edge ===
+                    'left'
+                ) {
+
+                    targetX =
+                        SCREEN_EDGE_MARGIN;
 
 
-                const outsidePosition =
-                    screenPixelToWorld(
-                        outsideX,
-                        outsideY,
-                        exitInfo.ndcZ,
-                        width,
-                        height
-                    );
+                    targetY =
+                        edgeInfo.y;
+                }
 
+
+                else if (
+                    edgeInfo.edge ===
+                    'right'
+                ) {
+
+                    targetX =
+                        width -
+                        SCREEN_EDGE_MARGIN;
+
+
+                    targetY =
+                        edgeInfo.y;
+                }
+
+
+                else if (
+                    edgeInfo.edge ===
+                    'top'
+                ) {
+
+                    targetX =
+                        edgeInfo.x;
+
+
+                    targetY =
+                        SCREEN_EDGE_MARGIN;
+                }
+
+
+                else if (
+                    edgeInfo.edge ===
+                    'bottom'
+                ) {
+
+                    targetX =
+                        edgeInfo.x;
+
+
+                    targetY =
+                        height -
+                        SCREEN_EDGE_MARGIN;
+                }
+
+
+                // =============================================
+                // Screen location -> world label position
+                // =============================================
 
                 labelPosition =
                     screenPixelToWorld(
-                        labelX,
-                        labelY,
-                        exitInfo.ndcZ,
+                        targetX,
+                        targetY,
+                        ndcZ,
                         width,
                         height
                     );
+
+
+                // =============================================
+                // Leader start
+                // =============================================
+
+                let leaderStart =
+                    pointPosition.clone();
+
+
+                /*
+                 * Normally POINT_START_MARGIN = 0,
+                 * so the line starts exactly from clicked point.
+                 */
+                if (
+                    POINT_START_MARGIN >
+                    0
+                ) {
+
+                    const direction =
+                        new THREE.Vector3()
+                            .subVectors(
+                                labelPosition,
+                                pointPosition
+                            );
+
+
+                    if (
+                        direction.lengthSq() >
+                        1e-12
+                    ) {
+
+                        direction.normalize();
+
+
+                        leaderStart =
+                            pointPosition
+                                .clone()
+                                .add(
+                                    direction
+                                        .multiplyScalar(
+                                            POINT_START_MARGIN
+                                        )
+                                );
+                    }
+                }
 
 
                 // =============================================
                 // Leader line
                 //
-                // point
-                //   -> nearest silhouette
-                //   -> just outside anatomy
-                //   -> label
+                // Exactly one straight segment:
+                //
+                // POINT ----------------> nearest screen edge
                 // =============================================
 
                 const leaderGeometry =
@@ -897,22 +654,10 @@ export function renderAnnotations() {
 
                 leaderGeometry.setPositions([
 
-                    // selected point
-                    pointPosition.x,
-                    pointPosition.y,
-                    pointPosition.z,
+                    leaderStart.x,
+                    leaderStart.y,
+                    leaderStart.z,
 
-                    // nearest model silhouette
-                    silhouettePosition.x,
-                    silhouettePosition.y,
-                    silhouettePosition.z,
-
-                    // slightly outside model
-                    outsidePosition.x,
-                    outsidePosition.y,
-                    outsidePosition.z,
-
-                    // label
                     labelPosition.x,
                     labelPosition.y,
                     labelPosition.z
@@ -929,8 +674,7 @@ export function renderAnnotations() {
                             3,
 
                         transparent:
-                            groupOpacity <
-                            1,
+                            groupOpacity < 1,
 
                         opacity:
                             groupOpacity,
@@ -942,11 +686,7 @@ export function renderAnnotations() {
                             ),
 
                         /*
-                         * Keep leader visible from selected point
-                         * to outside.
-                         *
-                         * The algorithm itself minimizes how much
-                         * anatomy the first segment crosses.
+                         * Always show the leader.
                          */
                         depthTest:
                             false
@@ -974,7 +714,7 @@ export function renderAnnotations() {
 
 
                 // ---------------------------------------------
-                // Occlusion check
+                // Occlusion
                 // ---------------------------------------------
 
                 occlusionCheckPos =
@@ -998,8 +738,7 @@ export function renderAnnotations() {
                 if (
                     ann.projectedEdges &&
                     ann.surfaceProjection &&
-                    ann.projectedEdges.length >
-                    0
+                    ann.projectedEdges.length > 0
                 ) {
 
                     ann.projectedEdges.forEach(
@@ -1009,17 +748,14 @@ export function renderAnnotations() {
                         ) => {
 
                             const startIdx =
-                                edgeIdx ===
-                                0
+                                edgeIdx === 0
                                     ? 0
                                     : 1;
 
 
                             for (
-                                let j =
-                                    startIdx;
-                                j <
-                                edge.length;
+                                let j = startIdx;
+                                j < edge.length;
                                 j++
                             ) {
 
@@ -1060,15 +796,12 @@ export function renderAnnotations() {
 
 
                     if (
-                        ann.type ===
-                            'polygon' &&
-                        points.length >
-                            0
+                        ann.type === 'polygon' &&
+                        points.length > 0
                     ) {
 
                         points.push(
-                            points[0]
-                                .clone()
+                            points[0].clone()
                         );
                     }
 
@@ -1085,10 +818,6 @@ export function renderAnnotations() {
                     );
                 }
 
-
-                // ---------------------------------------------
-                // Line
-                // ---------------------------------------------
 
                 const lineGeometry =
                     new LineGeometry();
@@ -1109,8 +838,7 @@ export function renderAnnotations() {
                             3,
 
                         transparent:
-                            groupOpacity <
-                            1,
+                            groupOpacity < 1,
 
                         opacity:
                             groupOpacity,
@@ -1172,8 +900,7 @@ export function renderAnnotations() {
                                 color,
 
                                 transparent:
-                                    groupOpacity <
-                                    1,
+                                    groupOpacity < 1,
 
                                 opacity:
                                     groupOpacity
@@ -1237,10 +964,8 @@ export function renderAnnotations() {
                 // ---------------------------------------------
 
                 if (
-                    ann.type ===
-                        'polygon' &&
-                    ann.points.length >
-                        0
+                    ann.type === 'polygon' &&
+                    ann.points.length > 0
                 ) {
 
                     const centroid =
@@ -1285,14 +1010,14 @@ export function renderAnnotations() {
                         new THREE.Vector3(
 
                             centroid.x /
-                                ann.points.length,
+                            ann.points.length,
 
                             centroid.y /
-                                ann.points.length +
-                                labelOffset,
+                            ann.points.length +
+                            labelOffset,
 
                             centroid.z /
-                                ann.points.length
+                            ann.points.length
                         );
 
 
@@ -1300,18 +1025,17 @@ export function renderAnnotations() {
                         new THREE.Vector3(
 
                             centroid.x /
-                                ann.points.length,
+                            ann.points.length,
 
                             centroid.y /
-                                ann.points.length,
+                            ann.points.length,
 
                             centroid.z /
-                                ann.points.length
+                            ann.points.length
                         );
 
                 } else if (
-                    ann.points.length >
-                    0
+                    ann.points.length > 0
                 ) {
 
                     const lp =
@@ -1326,7 +1050,7 @@ export function renderAnnotations() {
                             lp.x,
 
                             lp.y +
-                                labelOffset,
+                            labelOffset,
 
                             lp.z
                         );
@@ -1375,8 +1099,7 @@ export function renderAnnotations() {
 
                 if (
                     ann.points &&
-                    ann.points.length >
-                    0
+                    ann.points.length > 0
                 ) {
 
                     const sp =
@@ -1391,7 +1114,7 @@ export function renderAnnotations() {
                             sp.x,
 
                             sp.y +
-                                labelOffset,
+                            labelOffset,
 
                             sp.z
                         );
@@ -1459,13 +1182,13 @@ export function renderAnnotations() {
 
                         ? -(
                             size.y /
-                                2 +
+                            2 +
                             labelOffset
                         )
 
                         : (
                             size.y /
-                                2 +
+                            2 +
                             labelOffset
                         );
 
@@ -1476,7 +1199,7 @@ export function renderAnnotations() {
                         bc.x,
 
                         bc.y +
-                            yOffset,
+                        yOffset,
 
                         bc.z
                     );
@@ -1510,8 +1233,7 @@ export function renderAnnotations() {
 
 
                 if (
-                    groupOpacity <
-                    1
+                    groupOpacity < 1
                 ) {
 
                     label.material.opacity =
@@ -1572,8 +1294,7 @@ export function renderSurfaceAnnotation(
 
     if (
         !ann.faceData ||
-        ann.faceData.length ===
-        0
+        ann.faceData.length === 0
     ) {
 
         return null;
@@ -1591,9 +1312,7 @@ export function renderSurfaceAnnotation(
                 meshIdx,
                 faceIdx
             ] =
-                faceId.split(
-                    '_'
-                );
+                faceId.split('_');
 
 
             if (
@@ -1610,9 +1329,7 @@ export function renderSurfaceAnnotation(
 
 
             facesByMesh
-                .get(
-                    meshIdx
-                )
+                .get(meshIdx)
                 .push(
                     parseInt(
                         faceIdx
@@ -1670,43 +1387,33 @@ export function renderSurfaceAnnotation(
 
                         a =
                             geometry.index.getX(
-                                faceIdx *
-                                3
+                                faceIdx * 3
                             );
 
 
                         b =
                             geometry.index.getX(
-                                faceIdx *
-                                3 +
-                                1
+                                faceIdx * 3 + 1
                             );
 
 
                         c =
                             geometry.index.getX(
-                                faceIdx *
-                                3 +
-                                2
+                                faceIdx * 3 + 2
                             );
 
                     } else {
 
                         a =
-                            faceIdx *
-                            3;
+                            faceIdx * 3;
 
 
                         b =
-                            faceIdx *
-                            3 +
-                            1;
+                            faceIdx * 3 + 1;
 
 
                         c =
-                            faceIdx *
-                            3 +
-                            2;
+                            faceIdx * 3 + 2;
                     }
 
 
@@ -1775,8 +1482,7 @@ export function renderSurfaceAnnotation(
 
 
     if (
-        vertices.length ===
-        0
+        vertices.length === 0
     ) {
 
         return null;
@@ -2114,13 +1820,13 @@ export function renderBoxAnnotation(
                 new THREE.Vector3(
 
                     corner[0] *
-                        size.x,
+                    size.x,
 
                     corner[1] *
-                        size.y,
+                    size.y,
 
                     corner[2] *
-                        size.z
+                    size.z
                 );
 
 
@@ -2132,13 +1838,13 @@ export function renderBoxAnnotation(
             handle.position.set(
 
                 dc.x +
-                    localPos.x,
+                localPos.x,
 
                 dc.y +
-                    localPos.y,
+                localPos.y,
 
                 dc.z +
-                    localPos.z
+                localPos.z
             );
 
 
